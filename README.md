@@ -1,32 +1,24 @@
-🌌 Null Geodesic Raytracer & Relativistic Astrophysics Engine
+🌌 Null Geodesic Raytracer
 
 Overview
 
-This project is a high-performance computational physics engine and distributed rendering pipeline designed to simulate the extreme environments around black holes. Bypassing traditional 3D graphics rasterization, this engine calculates the exact paths of light (null geodesics) through curved spacetime by numerically integrating differential equations derived from General and Special Relativity.
+This project is a high-performance computational physics engine designed to simulate the extreme gravitational environments around black holes. By bypassing standard 3D graphics rasterization, this engine calculates the exact paths of light (null geodesics) through curved spacetime by numerically integrating differential equations derived from General Relativity.
 
-The complete architectural scope encompasses an offline scientific renderer, a distributed asynchronous computing cluster for rendering high-resolution video arrays, and a RESTful API for triggering rendering jobs. It accurately visualizes the event horizon shadow, photon spheres, gravitational lensing of background starfields, and the asymmetric luminosity of relativistic accretion disks.
+🔬 Core Physics & Rendering Architecture
 
-🔬 Core Physics & Mathematical Engine
+The simulation bridges complex astrophysics with optimized backend software engineering to handle massive computational loads.
 
-The simulation bridges complex astrophysics with optimized backend software engineering:
+Runge-Kutta 4 (RK4) Integration: Tracing photon trajectories deep within infinite gravity wells requires high-precision math to prevent orbital degradation. The engine implements a custom RK4 numerical solver based on the exact mathematical effective potential for the Schwarzschild Metric in Geometrized Units ($G=c=1$).
 
-Spacetime Metrics: Implements the Schwarzschild Metric (static) and is architected to support the Kerr Metric (rotating), simulating phenomena like frame-dragging (Lense-Thirring effect) and oblate shadow deformation.
+Vectorized Backward Ray-Tracing: To bypass the computational bottleneck of standard Python loops, the camera model is entirely vectorized using NumPy. Coupled with Numba JIT compilation, the core engine achieves near-C++ execution speeds, effectively calculating over 160,000 simultaneous light paths per frame during local shadow and halo rendering.
 
-Runge-Kutta 4 (RK4) Integration: Developed a high-precision 4th-order numerical solver to accurately trace photon trajectories deep within infinite gravity wells, ensuring zero orbital degradation over thousands of integration steps.
+Accretion Disk Radiative Transfer: The system calculates precise ray-plane intersections at the black hole's equatorial plane ($y=0$), applying thermodynamic intensity gradients to generate the iconic lensed "halo" effect visible in astrophysical models.
 
-Vectorized Backward Ray-Tracing: Engineered a pinhole camera model utilizing NumPy vectorization, generating millions of 3D directional vectors simultaneously to bypass the computational bottleneck of standard Python loops.
+🚀 Distributed Infrastructure
 
-Accretion Disk Radiative Transfer: Calculates precise ray-plane intersections at the black hole's equatorial plane. Applies thermodynamic intensity gradients based on the photon's radial impact distance to generate the iconic lensed "halo" effect.
+For high-resolution batch processing and eventual 60fps video generation, the engine scales horizontally rather than relying on a single thread.
 
-Special Relativity (Doppler Beaming): Incorporates Lorentz transformations to calculate redshift and blueshift, generating physically accurate asymmetric luminosity (Doppler boosting) caused by gas orbiting at near-light speeds.
-
-🚀 Architecture & Systems Engineering
-
-JIT Compilation (Numba): The core physics loops are decorated with @njit, compiling the Python integration math directly into optimized LLVM machine code. This bypasses the Global Interpreter Lock (GIL) and achieves near C-level execution speeds for massive ray-tracing workloads.
-
-Distributed Task Queue (Celery & Redis): Architected a distributed computing pipeline capable of rendering high-definition video frames across a cluster. Utilizes Celery as the asynchronous task executor and containerized Redis (via Docker) as the message broker to distribute millions of ray calculations across multiple CPU cores.
-
-RESTful API Engine: Features a FastAPI interface to manage simulation parameters, queue rendering jobs, and monitor worker node status in real-time.
+Asynchronous Task Queue: The project implements a distributed rendering pipeline utilizing Celery and Redis. This architecture successfully distributes heavy differential math workloads across isolated Docker containers, allowing multiple worker nodes to compute independent chunks of the spacetime grid asynchronously.
 
 🛠️ Technology Stack
 
@@ -38,27 +30,21 @@ Performance Optimization: Numba (Just-In-Time Compilation)
 
 Distributed Systems: Celery, Redis, Docker
 
-Web/API Backend: FastAPI, Uvicorn
-
-Visualization/Media: Matplotlib, OpenCV, Pillow
+Visualization: Matplotlib, Pillow
 
 🗺️ Project Scope & Roadmap
 
-The project is structured in iterative phases, moving from static mathematical proofs to a fully dynamic, distributed rendering cluster:
+The project is structured in iterative phases, moving from static mathematical proofs to a dynamic, relativistic rendering cluster:
 
 [x] Phase 1: Spacetime Foundation: Implement Schwarzschild geodesic math and RK4 integrators.
 
-[x] Phase 2: Spatial Optics: Vectorize the camera engine and implement accretion disk collision detection (the "Halo" effect).
+[x] Phase 2: Spatial Optics: Vectorize the camera engine and implement accretion disk collision detection.
 
-[ ] Phase 3: Special Relativity: Implement Doppler beaming, relativistic aberration, and frequency shifts for the accretion disk.
+[ ] Phase 3: Special Relativity: Implement Doppler beaming and Lorentz transformations to calculate asymmetric luminosity caused by the disk spinning at near-light speeds.
 
 [ ] Phase 4: The Kerr Metric: Upgrade the core Hamiltonians to support spinning black holes and frame dragging.
 
-[ ] Phase 5: Environment Mapping: Integrate EXR skybox distortion to accurately simulate the gravitational lensing of the surrounding galaxy.
-
-[ ] Phase 6: Distributed Video Pipeline: Finalize the Celery/Redis architecture to process batch jobs for 60fps video rendering via OpenCV.
-
-[ ] Phase 7: API Gateway: Deploy the FastAPI layer for remote simulation triggers and configuration uploads.
+[ ] Phase 5: API Gateway: Deploy a FastAPI layer for remote simulation triggers and configuration uploads.
 
 ⚡ Quick Start
 
@@ -74,12 +60,12 @@ pip install -r requirements.txt
 Run the single-threaded rendering scripts to visualize the current physics implementation:
 
 python render_accretion_disk.py
-python render_first_light.py
+python test_physics_viz.py
 
 
-3. Distributed Rendering (Infrastructure)
+3. Start the Distributed Workers
 
-To utilize the asynchronous worker pipeline for batch processing:
+To utilize the asynchronous worker pipeline for batch rendering:
 
 # Start the Redis message broker
 docker-compose up -d
