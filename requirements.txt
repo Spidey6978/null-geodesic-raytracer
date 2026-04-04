@@ -1,0 +1,25 @@
+
+numpy>=1.24.0      # The heavy lifter for vector math
+numba>=0.57.0      # JIT compiler: Makes Python math run at C++ speeds
+scipy>=1.10.0      # For advanced integrators (RK45) if we need them
+matplotlib>=3.7.0  # For plotting 2D rays and debugging
+pillow>=9.5.0      # For image manipulation (textures)
+
+opencv-python      # For saving the simulation as video (.mp4)
+
+
+fastapi>=0.95.0    # The modern web framework
+uvicorn[standard]  # The lightning-fast ASGI server
+python-multipart   # For uploading config files
+python-dotenv      # For managing secrets and environment variables (.env)
+
+
+celery>=5.3.0      # Manages the background simulation jobs
+redis>=4.5.0       # The message broker connector (talks to the Redis DB)
+
+
+notebook           # Jupyter notebooks for prototyping
+tqdm               # Progress bars for the console
+pyngrok            # Tunnels localhost to the web (for sharing demos)
+pytest             # For testing the physics engine accuracy
+httpx              # For testing the API endpoints

@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # --- The Message Broker ---
+  # Celery uses this to store task tickets ("Calculate this black hole frame")
+  redis:
+    image: redis:7-alpine
+    container_name: blackhole_redis
+    ports:
+      - "6379:6379"  # Maps localhost:6379 -> Container:6379
+    volumes:
+      - redis_data:/data  # Persist data so jobs aren't lost on restart
+    restart: always
+
+  # --- (Optional) The Dashboard ---
+  # A visual interface to see your Redis queues
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis_gui
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+
+volumes:
+  redis_data:
