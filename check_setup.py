@@ -1,6 +1,6 @@
 import sys
 import time
-from workers.test_task import test_redis_connection
+from workers.tasks import test_redis_connection
 
 def run_check():
     print("--- 🚀 STARTING INFRASTRUCTURE CHECK ---")

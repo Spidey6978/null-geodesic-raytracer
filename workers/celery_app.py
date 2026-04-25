@@ -19,7 +19,7 @@ celery_app = Celery(
     "black_hole_worker",
     broker=BROKER_URL,
     backend=BACKEND_URL,
-    include=["workers.test_task"] # This tells Celery where to look for jobs
+    include=["workers.tasks"] # This tells Celery where to look for jobs
 )
 
 # 4. Configure Optimization settings

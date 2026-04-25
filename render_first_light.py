@@ -41,7 +41,7 @@ def render():
             
             # 2. Trace the ray
             # We don't need a tiny dt for image rendering, 0.5 is fine for the shadow outline
-            path, captured = integrate_path(start_pos, start_vel, dt=0.5, max_steps=1000)
+            path, captured, _, _ = integrate_path(start_pos, start_vel, dt=0.5, max_steps=1000)
             
             # 3. Paint the pixel
             if captured:

@@ -7,7 +7,7 @@ import numpy as np
 from numba import njit
 from .constants import RS, C, SIM_BOUNDS, DISK_INNER, DISK_OUTER
 
-@njit(nopython=True, cache=False)
+@njit(nopython=True, cache=True)
 def get_acceleration(pos, vel):
     """
     Calculates the relativistic acceleration for a photon.
@@ -26,7 +26,7 @@ def get_acceleration(pos, vel):
     prefactor = -1.5 * RS * h2 / (r_sq * r_sq * r_sq)
     return prefactor * pos
 
-@njit(nopython=True, cache=False)
+@njit(nopython=True, cache=True)
 def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
     """
     Traces a single ray using RK4 integration.

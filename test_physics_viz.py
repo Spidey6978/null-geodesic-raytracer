@@ -31,7 +31,7 @@ def test_rays():
         start_vel = np.array([1.0, 0.0, 0.0])
         
         # RUN THE ENGINE
-        path, captured = integrate_path(start_pos, start_vel, dt=0.2)
+        path, captured, _, _ = integrate_path(start_pos, start_vel, dt=0.2)
         
         # Visual Logic
         if captured:
