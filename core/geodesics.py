@@ -3,7 +3,7 @@ Module: core.geodesics
 Calculates the path of a photon through curved spacetime.
 Optimized with Numba for C-speed execution.
 
-v2: Returns hit_pos and hit_vel at disk intersection for Doppler beaming.
+v4: Multi-hit equatorial plane intersection tracking for arbitrary-order lensed rings.
 """
 import numpy as np
 from numba import njit
@@ -30,20 +30,20 @@ def get_acceleration(pos, vel):
     prefactor = -1.5 * RS * h2 / (r_sq * r_sq * r_sq)
     return prefactor * pos
 
+
 @njit(nopython=True, cache=True)
 def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
     """
     Traces a single photon ray using RK4 integration through Schwarzschild spacetime.
+    Tracks up to 4 separate equatorial disk crossings (multi-hit tracing).
 
     Returns:
         path         : np.ndarray, shape (steps, 3) — the full trajectory
         captured     : bool — True if the photon fell inside the event horizon
-        hit_disk     : bool — True if the photon intersected the accretion disk
-        hit_radius   : float — cylindrical radius of disk hit (in geometrized units)
-        hit_phi      : float — azimuthal angle of disk hit (radians, in XZ plane)
-                               0 = +X axis, pi/2 = +Z axis. Used for Doppler beaming.
-        hit_vel      : np.ndarray, shape (3,) — photon velocity direction at disk hit.
-                               Used to compute the angle between photon and disk gas motion.
+        hit_count    : int — Number of times the ray crossed the disk plane
+        hit_radii    : np.ndarray (shape 4) — cylindrical radius of each crossing
+        hit_phis     : np.ndarray (shape 4) — azimuthal angle of each crossing (radians)
+        hit_vels     : np.ndarray (shape 4, 3) — photon velocity vector at each crossing
     """
     pos = start_pos.astype(np.float64)
     vel = start_vel.astype(np.float64)
@@ -54,10 +54,11 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
     steps_taken = 0
     captured = False
 
-    hit_disk   = False
-    hit_radius = 0.0
-    hit_phi    = 0.0
-    hit_vel    = np.zeros(3, dtype=np.float64)
+    # --- 1. CHANGE: Pre-allocate arrays for up to 4 crossings to satisfy Numba typing ---
+    hit_count = 0
+    hit_radii = np.zeros(4, dtype=np.float64)
+    hit_phis = np.zeros(4, dtype=np.float64)
+    hit_vels = np.zeros((4, 3), dtype=np.float64)
 
     for i in range(max_steps):
         steps_taken += 1
@@ -100,16 +101,23 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
                 r_hit_sq = hit_x * hit_x + hit_z * hit_z
 
                 if (DISK_INNER * DISK_INNER) <= r_hit_sq <= (DISK_OUTER * DISK_OUTER):
-                    hit_disk   = True
-                    hit_radius = np.sqrt(r_hit_sq)
-                    # atan2(z, x): phi=0 along +X, phi=pi/2 along +Z
-                    hit_phi  = np.arctan2(hit_z, hit_x)
-                    # Interpolated photon velocity at the crossing point
-                    hit_vel  = old_vel + t_frac * (vel - old_vel)
-                    speed2   = np.sqrt(np.dot(hit_vel, hit_vel))
-                    if speed2 > 0:
-                        hit_vel = hit_vel / speed2
-                    break
+                    # --- 2. CHANGE: Append to arrays instead of assigning to scalars & breaking ---
+                    if hit_count < 4:
+                        hit_radii[hit_count] = np.sqrt(r_hit_sq)
+                        hit_phis[hit_count] = np.arctan2(hit_z, hit_x)
+                        
+                        # Interpolate photon velocity at the crossing point
+                        h_vel = old_vel + t_frac * (vel - old_vel)
+                        h_speed = np.sqrt(h_vel[0]**2 + h_vel[1]**2 + h_vel[2]**2)
+                        if h_speed > 0:
+                            hit_vels[hit_count, 0] = h_vel[0] / h_speed
+                            hit_vels[hit_count, 1] = h_vel[1] / h_speed
+                            hit_vels[hit_count, 2] = h_vel[2] / h_speed
+                        else:
+                            hit_vels[hit_count] = h_vel
+                            
+                        hit_count += 1
+                        # DO NOT break here anymore! The ray passes through the gas disk.
 
         # --- Termination: captured or escaped ---
         dist_sq = np.dot(pos, pos)
@@ -121,4 +129,5 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
         if dist_sq > SIM_BOUNDS ** 2:
             break
 
-    return path[:steps_taken + 1], captured, hit_disk, hit_radius, hit_phi, hit_vel
+    # --- 3. CHANGE: Return arrays and crossing counts ---
+    return path[:steps_taken + 1], captured, hit_count, hit_radii, hit_phis, hit_vels

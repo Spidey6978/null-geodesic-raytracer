@@ -1,22 +1,11 @@
 """
-render_accretion_disk.py  —  v3: The High-Fidelity Parallel Numba Kernel
+render_accretion_disk.py  —  v4: Parallel Multi-Hit Lensed Sub-Ring Engine
 
-Physics implemented in the shader:
-  1. Keplerian orbital velocity at the disk hit radius (capped at ISCO).
-  2. Relativistic beta = v_orb / c and gamma = 1 / sqrt(1 - beta^2).
-  3. Relativistic Doppler factor.
-  4. Observed intensity scales as delta^4 (Luminet 1979).
-  5. Novikov-Thorne temperature profile.
-  6. Gravitational redshift tracking: nu_inf / nu_emit = sqrt(1 - Rs/r).
-  7. Secondary (ghost) thin Einstein rings from looping null geodesics.
-  8. Volumetric coronal gas glow on escaped light rays skimming the equator.
-  9. Procedural lensed background star field.
-  10. ACES Filmic Tone Mapping per-pixel.
-
-Optimization:
-  - @njit(parallel=True) multi-threading across all CPU cores.
-  - No Python-to-C overhead; entire pipeline is compiled to C.
-  - Optimized scalar math to eliminate dynamic array allocation in tight loops.
+Physics upgrades:
+  - Multi-Crossing Integration: Ray does not stop at the first hit; it gathers
+    light emission recursively from up to 4 equatorial plane intersections.
+  - High-order nested Einstein sub-rings are computed organically from the metric.
+  - Optically thin plasma model blending for multi-disk crossings.
 """
 
 import numpy as np
@@ -24,7 +13,7 @@ import matplotlib.pyplot as plt
 import time
 from numba import njit, prange
 
-# Clean, standard absolute imports relative to the project root
+# Clean absolute imports relative to project root (run with python -m scripts.render_accretion_disk)
 from core.camera    import generate_camera_rays
 from core.geodesics import integrate_path
 from core.constants import DISK_INNER, DISK_OUTER, RS, C
@@ -33,7 +22,7 @@ from core.constants import DISK_INNER, DISK_OUTER, RS, C
 M = RS / 2.0
 R_ISCO = 3.0 * RS
 
-# ── Doppler & Gravitational Shaders (Compiled to C) ───────────────────────────
+# ── Relativistic Shaders ──────────────────────────────────────────────────────
 
 @njit(nopython=True, fastmath=True, cache=True)
 def keplerian_beta(r):
@@ -50,7 +39,7 @@ def grav_redshift_factor(r):
 def novikov_thorne_temperature(r):
     r_s = max(r, R_ISCO * 1.001)
     nt  = (r_s / R_ISCO) ** (-0.75) * max((1.0 - np.sqrt(R_ISCO / r_s)) ** 0.25, 0.0)
-    return min(max(nt / 0.38, 0.0), 1.0) # 0.38 is the peak scale factor
+    return min(max(nt / 0.38, 0.0), 1.0)
 
 @njit(nopython=True, fastmath=True, cache=True)
 def blackbody_rgb(T_eff):
@@ -61,7 +50,7 @@ def blackbody_rgb(T_eff):
     return r, g, b
 
 @njit(nopython=True, fastmath=True, cache=True)
-def disk_colour(hit_radius, hit_phi, hit_vel_x, hit_vel_y, hit_vel_z, is_secondary):
+def disk_colour(hit_radius, hit_phi, hit_vel_x, hit_vel_y, hit_vel_z, order_index):
     T_base = novikov_thorne_temperature(hit_radius)
     
     # Calculate Doppler Factor
@@ -78,16 +67,18 @@ def disk_colour(hit_radius, hit_phi, hit_vel_x, hit_vel_y, hit_vel_z, is_seconda
     # Gravitational Redshift
     g_shift = grav_redshift_factor(hit_radius)
     
-    # Combined Intensity
+    # Combined Intensity (I_obs = (delta * g)^4 * I_emit)
     combined = (delta * g_shift) ** 4
     T_eff = min(max(T_base * delta * g_shift, 0.0), 1.0)
     
     r_c, g_c, b_c = blackbody_rgb(T_eff)
     intensity = T_base * combined
     
-    if is_secondary:
-        intensity *= 0.18 # SECONDARY_SCALE
-        
+    # Attenuate higher order crossings as they lose intensity winding around the hole
+    # Order 0 (Primary) = 1.0, Order 1 (Secondary) = 0.18, Order 2 (Tertiary) = 0.05, etc.
+    attenuation = 1.0 / (1.0 + 4.5 * order_index)
+    intensity *= attenuation
+    
     intensity = min(max(intensity, 0.0), 1.8)
     return r_c * intensity, g_c * intensity, b_c * intensity
 
@@ -178,7 +169,6 @@ def star_field_colour(ray_dir, star_dirs, star_bright, star_cos_radii, star_colo
     best_idx = -1
     max_bright = -1.0
     
-    # Efficient scalar loop over all 2500 stars
     for i in range(2500):
         dot = star_dirs[i, 0] * rx + star_dirs[i, 1] * ry + star_dirs[i, 2] * rz
         if dot > star_cos_radii[i]:
@@ -211,8 +201,8 @@ def render_kernel(width, height, cam_pos, ray_dirs,
         for x in range(width):
             start_vel = ray_dirs[y, x]
 
-            # 1. Trace the Ray
-            path, captured, hit_disk, hit_radius, hit_phi, hit_vel = integrate_path(
+            # 1. Trace the Ray (Upgraded Core Geodesics returns 6 items now)
+            path, captured, hit_count, hit_radii, hit_phis, hit_vels = integrate_path(
                 cam_pos, start_vel, dt=0.5, max_steps=2000
             )
 
@@ -221,87 +211,57 @@ def render_kernel(width, height, cam_pos, ray_dirs,
             g_pixel = 0.0
             b_pixel = 0.0
 
-            if captured:
-                # Inside Event Horizon
+            if captured and hit_count == 0:
+                # Direct capture (no disk crossings) -> Pitch Black
                 r_pixel = 0.0
                 g_pixel = 0.0
                 b_pixel = 0.0
-            elif hit_disk:
-                # Primary disk contribution
-                r_p, g_p, b_p = disk_colour(hit_radius, hit_phi, hit_vel[0], hit_vel[1], hit_vel[2], False)
-                r_pixel += r_p
-                g_pixel += g_p
-                b_pixel += b_p
+            else:
+                # Accumulate light across all plane crossings (optically thin blending)
+                if hit_count > 0:
+                    for idx in range(hit_count):
+                        r_s, g_s, b_s = disk_colour(
+                            hit_radii[idx], hit_phis[idx],
+                            hit_vels[idx, 0], hit_vels[idx, 1], hit_vels[idx, 2],
+                            idx
+                        )
+                        r_pixel += r_s
+                        g_pixel += g_s
+                        b_pixel += b_s
 
-                # Secondary ghost ring image calculation
-                crossing_count = 0
-                length = len(path)
-                for k in range(1, length):
-                    old_p = path[k-1]
-                    new_p = path[k]
-                    if old_p[1] * new_p[1] <= 0.0:
-                        crossing_count += 1
-                        if crossing_count == 1:
-                            continue # skip the primary crossing
-                        
-                        dy = new_p[1] - old_p[1]
-                        if dy == 0.0:
-                            continue
-                        t_f = -old_p[1] / dy
-                        hx = old_p[0] + t_f * (new_p[0] - old_p[0])
-                        hz = old_p[2] + t_f * (new_p[2] - old_p[2])
-                        r_h = np.sqrt(hx*hx + hz*hz)
-                        if DISK_INNER <= r_h <= DISK_OUTER:
-                            phi_h = np.arctan2(hz, hx)
-                            
-                            # Local velocity vector direction
-                            vh_x = new_p[0] - old_p[0]
-                            vh_y = new_p[1] - old_p[1]
-                            vh_z = new_p[2] - old_p[2]
-                            vn = np.sqrt(vh_x*vh_x + vh_y*vh_y + vh_z*vh_z)
-                            if vn > 0:
-                                vh_x /= vn
-                                vh_y /= vn
-                                vh_z /= vn
-                            
-                            r_s, g_s, b_s = disk_colour(r_h, phi_h, vh_x, vh_y, vh_z, True)
-                            r_pixel += r_s
-                            g_pixel += g_s
-                            b_pixel += b_s
-                            break
+                    # Apply HDR bounds checking
+                    r_pixel = min(max(r_pixel, 0.0), 2.0)
+                    g_pixel = min(max(g_pixel, 0.0), 2.0)
+                    b_pixel = min(max(b_pixel, 0.0), 2.0)
+                
+                # If the ray also escaped after some disk crossings (or missed completely),
+                # we sample background stars and volumetric glow.
+                if not captured:
+                    final_dir_x = start_vel[0]
+                    final_dir_y = start_vel[1]
+                    final_dir_z = start_vel[2]
+                    
+                    if len(path) > 1:
+                        final_dir_x = path[-1, 0] - path[-2, 0]
+                        final_dir_y = path[-1, 1] - path[-2, 1]
+                        final_dir_z = path[-1, 2] - path[-2, 2]
 
-                # Clip to HDR ceiling before tonemapping
+                    final_dir = np.array([final_dir_x, final_dir_y, final_dir_z])
+                    
+                    # Sample star field
+                    s_r, s_g, s_b = star_field_colour(final_dir, star_dirs, star_bright, star_cos_radii, star_colour, star_palettes)
+                    
+                    # Add soft volumetric gas glow
+                    glow_r, glow_g, glow_b = volumetric_glow(path)
+
+                    r_pixel += s_r + glow_r
+                    g_pixel += s_g + glow_g
+                    b_pixel += s_b + glow_b
+
+                # Clamp values before feeding to tone-mapping curves
                 r_pixel = min(max(r_pixel, 0.0), 2.0)
                 g_pixel = min(max(g_pixel, 0.0), 2.0)
                 b_pixel = min(max(b_pixel, 0.0), 2.0)
-
-            else:
-                # Escaped: Procedural Star field + Volumetric gas glow
-                final_dir_x = start_vel[0]
-                final_dir_y = start_vel[1]
-                final_dir_z = start_vel[2]
-                
-                if len(path) > 1:
-                    final_dir_x = path[-1, 0] - path[-2, 0]
-                    final_dir_y = path[-1, 1] - path[-2, 1]
-                    final_dir_z = path[-1, 2] - path[-2, 2]
-
-                final_dir = np.array([final_dir_x, final_dir_y, final_dir_z])
-                
-                # Sample star field
-                s_r, s_g, s_b = star_field_colour(final_dir, star_dirs, star_bright, star_cos_radii, star_colour, star_palettes)
-                
-                # Volumetric coronal glow
-                glow_r, glow_g, glow_b = volumetric_glow(path)
-
-                r_pixel = s_r + glow_r
-                g_pixel = s_g + glow_g
-                b_pixel = s_b + glow_b
-
-                # Clip escaped limits
-                r_pixel = min(max(r_pixel, 0.0), 1.0)
-                g_pixel = min(max(g_pixel, 0.0), 1.0)
-                b_pixel = min(max(b_pixel, 0.0), 1.0)
 
             # Apply ACES filmic tonemap curve per-pixel
             image[y, x, 0] = aces_tonemap(r_pixel)
@@ -355,7 +315,7 @@ def render():
     ax.imshow(image, origin='upper')
     ax.axis('off')
     ax.set_title(
-        f"Relativistic Accretion Disk (Parallel High-Fidelity Engine)\n"
+        f"Relativistic Accretion Disk (Parallel Multi-Hit Engine)\n"
         f"{WIDTH}x{HEIGHT} px | {elapsed:.2f}s render time",
         color='white', fontsize=11, pad=10
     )
