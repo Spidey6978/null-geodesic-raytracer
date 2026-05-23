@@ -21,12 +21,15 @@ def test_rays():
     start_time = time.time()
     
     for b in impact_parameters:
-        start_pos = np.array([-SIM_BOUNDS + 5.0, b, 0.0]) 
+        # Numba requires explicit numpy arrays as input
+        start_pos = np.array([-SIM_BOUNDS + 5.0, b,0.0]) 
         start_vel = np.array([1.0, 0.0, 0.0])
         
-        # Unpack 6 variables now!
+        # RUN THE ENGINE
+        # UNPACKING 6 VARIABLES INSTEAD OF 4
         path, captured, _, _, _, _ = integrate_path(start_pos, start_vel, dt=0.2)
         
+        # Visual Logic
         if captured:
             color = '#ff3333'
             alpha = 0.4

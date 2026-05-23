@@ -24,18 +24,18 @@ def render():
             
         for x in range(WIDTH):
             start_pos = np.array(CAM_POS)
-            start_vel = ray_directions[y, x] 
+            start_vel = ray_directions[y, x] # Speed of light C is handled inside the integrator
             
-            # Unpack 6 variables now!
+            # 2. Trace the ray
+            # We don't need a tiny dt for image rendering, 0.5 is fine for the shadow outline
+            # UNPACKING 6 VARIABLES INSTEAD OF 4
             path, captured, _, _, _, _ = integrate_path(start_pos, start_vel, dt=0.5, max_steps=1000)
             
-            if captured:
-                image[y, x] = [0.0, 0.0, 0.0] 
-            else:
-                final_vel = path[-1] - path[-2] 
-                final_vel = final_vel / np.linalg.norm(final_vel)
-                color = (final_vel + 1.0) / 2.0
-                image[y, x] = color
+            # 3. Paint the pixel
+            final_vel = path[-1] - path[-2] 
+            final_vel = final_vel / np.linalg.norm(final_vel)
+            color = (final_vel + 1.0) / 2.0
+            image[y, x] = color
 
     elapsed = time.time() - start_time
     print(f"✅ Render complete in {elapsed:.2f} seconds.")
