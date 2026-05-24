@@ -360,7 +360,7 @@ def render():
         color='white', fontsize=11, pad=10
     )
     plt.tight_layout()
-    out = "accretion_disk_v4c.png"
+    out = "accretion_disk_v5.png"
     plt.savefig(out, bbox_inches='tight', dpi=200, facecolor='black')
     print(f"💾  Saved → {out}")
     plt.show()

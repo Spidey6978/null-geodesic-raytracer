@@ -26,8 +26,7 @@ def test_rays():
         start_vel = np.array([1.0, 0.0, 0.0])
         
         # RUN THE ENGINE
-        # UNPACKING 6 VARIABLES INSTEAD OF 4
-        path, captured, _, _, _, _ = integrate_path(start_pos, start_vel, dt=0.2)
+        path, steps_taken, captured, _, _, _, _ = integrate_path(start_pos, start_vel, dt=0.2)
         
         # Visual Logic
         if captured:
