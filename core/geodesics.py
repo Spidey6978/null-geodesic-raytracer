@@ -3,131 +3,176 @@ Module: core.geodesics
 Calculates the path of a photon through curved spacetime.
 Optimized with Numba for C-speed execution.
 
-v4: Multi-hit equatorial plane intersection tracking for arbitrary-order lensed rings.
+v5.1: Zero-Allocation Pure Scalar RK4 Solver with Static Returns.
 """
 import numpy as np
 from numba import njit
 from .constants import RS, C, SIM_BOUNDS, DISK_INNER, DISK_OUTER
 
-@njit(nopython=True, cache=True)
-def get_acceleration(pos, vel):
+@njit(nopython=True, cache=True, fastmath=True)
+def _get_acceleration_scalar(px, py, pz, vx, vy, vz):
     """
-    Calculates the relativistic acceleration for a photon in Schwarzschild spacetime.
-    Derived from the effective potential: U_eff = h^2 / (2r^2) * (1 - Rs/r)
-    The acceleration is: a = -1.5 * Rs * h^2 / r^5 * pos
+    Calculates Schwarzschild gravitational acceleration using pure scalar math.
+    Zero heap allocations.
     """
-    r_sq = np.dot(pos, pos)
+    r_sq = px*px + py*py + pz*pz
     if r_sq < RS * RS:
-        return np.zeros_like(pos)
+        return 0.0, 0.0, 0.0
 
-    h = np.cross(pos, vel)
-    if h.ndim == 0:
-        h_val = h.item()
-        h2 = h_val * h_val
-    else:
-        h2 = np.dot(h, h)
+    # Cross product of position and velocity: pos x vel
+    hx = py * vz - pz * vy
+    hy = pz * vx - px * vz
+    hz = px * vy - py * vx
+    h2 = hx*hx + hy*hy + hz*hz
 
     prefactor = -1.5 * RS * h2 / (r_sq * r_sq * r_sq)
-    return prefactor * pos
+    return prefactor * px, prefactor * py, prefactor * pz
 
 
-@njit(nopython=True, cache=True)
+@njit(nopython=True, cache=True, fastmath=True)
 def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
     """
-    Traces a single photon ray using RK4 integration through Schwarzschild spacetime.
-    Tracks up to 4 separate equatorial disk crossings (multi-hit tracing).
-
-    Returns:
-        path         : np.ndarray, shape (steps, 3) — the full trajectory
-        captured     : bool — True if the photon fell inside the event horizon
-        hit_count    : int — Number of times the ray crossed the disk plane
-        hit_radii    : np.ndarray (shape 4) — cylindrical radius of each crossing
-        hit_phis     : np.ndarray (shape 4) — azimuthal angle of each crossing (radians)
-        hit_vels     : np.ndarray (shape 4, 3) — photon velocity vector at each crossing
+    Traces a single photon ray using a zero-allocation, register-optimized
+    scalar RK4 integrator through Schwarzschild spacetime.
+    Tracks up to 4 separate equatorial disk crossings.
     """
-    pos = start_pos.astype(np.float64)
-    vel = start_vel.astype(np.float64)
+    # Unpack vectors into fast CPU register scalars
+    px = start_pos[0]
+    py = start_pos[1]
+    pz = start_pos[2]
 
-    path = np.zeros((max_steps + 1, len(pos)), dtype=np.float64)
-    path[0] = pos
+    vx = start_vel[0]
+    vy = start_vel[1]
+    vz = start_vel[2]
+
+    # Pre-normalize velocity to C using scalar operations
+    speed = (vx*vx + vy*vy + vz*vz)**0.5
+    if speed > 0:
+        vx = (vx / speed) * C
+        vy = (vy / speed) * C
+        vz = (vz / speed) * C
+
+    path = np.zeros((max_steps + 1, 3), dtype=np.float64)
+    path[0, 0] = px
+    path[0, 1] = py
+    path[0, 2] = pz
 
     steps_taken = 0
     captured = False
 
-    # --- 1. CHANGE: Pre-allocate arrays for up to 4 crossings to satisfy Numba typing ---
+    # Pre-allocate fixed arrays for crossings
     hit_count = 0
     hit_radii = np.zeros(4, dtype=np.float64)
     hit_phis = np.zeros(4, dtype=np.float64)
     hit_vels = np.zeros((4, 3), dtype=np.float64)
 
+    dt_half = dt * 0.5
+
     for i in range(max_steps):
         steps_taken += 1
-        old_pos = pos.copy()
-        old_vel = vel.copy()
+        
+        # Track previous coordinates as scalars (replacing .copy() overhead!)
+        old_px, old_py, old_pz = px, py, pz
+        old_vx, old_vy, old_vz = vx, vy, vz
 
-        # --- Runge-Kutta 4 Integration ---
-        k1_v = get_acceleration(pos, vel)
-        k1_p = vel
+        # --- RK4 Scalar Integration Step ---
+        
+        # k1
+        k1_vx, k1_vy, k1_vz = _get_acceleration_scalar(px, py, pz, vx, vy, vz)
+        k1_px, k1_py, k1_pz = vx, vy, vz
 
-        k2_v = get_acceleration(pos + k1_p * dt * 0.5, vel + k1_v * dt * 0.5)
-        k2_p = vel + k1_v * dt * 0.5
+        # k2
+        p2_x = px + k1_px * dt_half
+        p2_y = py + k1_py * dt_half
+        p2_z = pz + k1_pz * dt_half
+        v2_x = vx + k1_vx * dt_half
+        v2_y = vy + k1_vy * dt_half
+        v2_z = vz + k1_vz * dt_half
+        k2_vx, k2_vy, k2_vz = _get_acceleration_scalar(p2_x, p2_y, p2_z, v2_x, v2_y, v2_z)
+        k2_px, k2_py, k2_pz = v2_x, v2_y, v2_z
 
-        k3_v = get_acceleration(pos + k2_p * dt * 0.5, vel + k2_v * dt * 0.5)
-        k3_p = vel + k2_v * dt * 0.5
+        # k3
+        p3_x = px + k2_px * dt_half
+        p3_y = py + k2_py * dt_half
+        p3_z = pz + k2_pz * dt_half
+        v3_x = vx + k2_vx * dt_half
+        v3_y = vy + k2_vy * dt_half
+        v3_z = vz + k2_vz * dt_half
+        k3_vx, k3_vy, k3_vz = _get_acceleration_scalar(p3_x, p3_y, p3_z, v3_x, v3_y, v3_z)
+        k3_px, k3_py, k3_pz = v3_x, v3_y, v3_z
 
-        k4_v = get_acceleration(pos + k3_p * dt, vel + k3_v * dt)
-        k4_p = vel + k3_v * dt
+        # k4
+        p4_x = px + k3_px * dt
+        p4_y = py + k3_py * dt
+        p4_z = pz + k3_pz * dt
+        v4_x = vx + k3_vx * dt
+        v4_y = vy + k3_vy * dt
+        v4_z = vz + k3_vz * dt
+        k4_vx, k4_vy, k4_vz = _get_acceleration_scalar(p4_x, p4_y, p4_z, v4_x, v4_y, v4_z)
+        k4_px, k4_py, k4_pz = v4_x, v4_y, v4_z
 
-        vel += (dt / 6.0) * (k1_v + 2*k2_v + 2*k3_v + k4_v)
-        pos += (dt / 6.0) * (k1_p + 2*k2_p + 2*k3_p + k4_p)
+        # Update scalar coordinates
+        vx += (dt / 6.0) * (k1_vx + 2*k2_vx + 2*k3_vx + k4_vx)
+        vy += (dt / 6.0) * (k1_vy + 2*k2_vy + 2*k3_vy + k4_vy)
+        vz += (dt / 6.0) * (k1_vz + 2*k2_vz + 2*k3_vz + k4_vz)
+        
+        px += (dt / 6.0) * (k1_px + 2*k2_px + 2*k3_px + k4_px)
+        py += (dt / 6.0) * (k1_py + 2*k2_py + 2*k3_py + k4_py)
+        pz += (dt / 6.0) * (k1_pz + 2*k2_pz + 2*k3_pz + k4_pz)
 
-        # Re-normalise to speed of light (keeps the photon null)
-        speed = np.sqrt(np.dot(vel, vel))
-        if speed > 0:
-            vel = (vel / speed) * C
+        # Normalize velocity components
+        v_speed = (vx*vx + vy*vy + vz*vz)**0.5
+        if v_speed > 0:
+            vx = (vx / v_speed) * C
+            vy = (vy / v_speed) * C
+            vz = (vz / v_speed) * C
 
-        path[i+1] = pos
+        # Log position to trajectory array
+        path[steps_taken, 0] = px
+        path[steps_taken, 1] = py
+        path[steps_taken, 2] = pz
 
         # --- Accretion Disk Collision (equatorial plane y = 0) ---
-        if old_pos[1] * pos[1] <= 0.0:
-            dy = pos[1] - old_pos[1]
+        if old_py * py <= 0.0:
+            dy = py - old_py
             if dy != 0.0:
-                t_frac = -old_pos[1] / dy
+                t_frac = -old_py / dy
 
-                # Exact intersection point via linear interpolation
-                hit_x = old_pos[0] + t_frac * (pos[0] - old_pos[0])
-                hit_z = old_pos[2] + t_frac * (pos[2] - old_pos[2])
-
+                # Exact intersection coordinates via linear interpolation
+                hit_x = old_px + t_frac * (px - old_px)
+                hit_z = old_pz + t_frac * (pz - old_pz)
                 r_hit_sq = hit_x * hit_x + hit_z * hit_z
 
+                # If crossing lands inside disk annulus
                 if (DISK_INNER * DISK_INNER) <= r_hit_sq <= (DISK_OUTER * DISK_OUTER):
-                    # --- 2. CHANGE: Append to arrays instead of assigning to scalars & breaking ---
                     if hit_count < 4:
-                        hit_radii[hit_count] = np.sqrt(r_hit_sq)
+                        hit_radii[hit_count] = r_hit_sq ** 0.5
                         hit_phis[hit_count] = np.arctan2(hit_z, hit_x)
                         
-                        # Interpolate photon velocity at the crossing point
-                        h_vel = old_vel + t_frac * (vel - old_vel)
-                        h_speed = np.sqrt(h_vel[0]**2 + h_vel[1]**2 + h_vel[2]**2)
+                        # Interpolate velocity direction vectors
+                        h_vx = old_vx + t_frac * (vx - old_vx)
+                        h_vy = old_vy + t_frac * (vy - old_vy)
+                        h_vz = old_vz + t_frac * (vz - old_vz)
+                        h_speed = (h_vx*h_vx + h_vy*h_vy + h_vz*h_vz)**0.5
+                        
                         if h_speed > 0:
-                            hit_vels[hit_count, 0] = h_vel[0] / h_speed
-                            hit_vels[hit_count, 1] = h_vel[1] / h_speed
-                            hit_vels[hit_count, 2] = h_vel[2] / h_speed
+                            hit_vels[hit_count, 0] = h_vx / h_speed
+                            hit_vels[hit_count, 1] = h_vy / h_speed
+                            hit_vels[hit_count, 2] = h_vz / h_speed
                         else:
-                            hit_vels[hit_count] = h_vel
+                            hit_vels[hit_count, 0] = h_vx
+                            hit_vels[hit_count, 1] = h_vy
+                            hit_vels[hit_count, 2] = h_vz
                             
                         hit_count += 1
-                        # DO NOT break here anymore! The ray passes through the gas disk.
 
-        # --- Termination: captured or escaped ---
-        dist_sq = np.dot(pos, pos)
-
+        # --- Termination ---
+        dist_sq = px*px + py*py + pz*pz
         if dist_sq < (RS * 1.01) ** 2:
             captured = True
             break
-
         if dist_sq > SIM_BOUNDS ** 2:
             break
 
-    # --- 3. CHANGE: Return arrays and crossing counts ---
-    return path[:steps_taken + 1], captured, hit_count, hit_radii, hit_phis, hit_vels
+    # --- PERFORMANCE FIX: Return unsliced static path array + steps_taken scalar ---
+    return path, steps_taken, captured, hit_count, hit_radii, hit_phis, hit_vels
