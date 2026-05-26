@@ -5,60 +5,52 @@ Utilizes NumPy vectorization for massive parallel math.
 """
 import numpy as np
 
-def generate_camera_rays(width, height, fov_degrees, cam_pos, look_at):
+def generate_camera_rays(width, height, fov_degrees, cam_pos, look_at, roll_degrees=0.0):
     """
     Generates a normalized direction vector for every pixel on the screen.
     Returns an array of shape (height, width, 3).
     """
-    # 1. Camera Axis Vectors (The local coordinate system of the camera)
+    # 1. Camera Axis Vectors
     cam_pos = np.array(cam_pos, dtype=np.float64)
     look_at = np.array(look_at, dtype=np.float64)
-    up_guide = np.array([0.0, 1.0, 0.0], dtype=np.float64) # Global Up
+    up_guide = np.array([0.0, 1.0, 0.0], dtype=np.float64) 
 
-    # Forward direction (Z-axis)
     forward = look_at - cam_pos
     forward = forward / np.linalg.norm(forward)
 
-    # Right direction (X-axis)
     right = np.cross(forward, up_guide)
     right = right / np.linalg.norm(right)
 
-    # True Up direction (Y-axis)
     up = np.cross(right, forward)
 
-    # 2. Screen Dimensions (Field of View math)
+    # 2. Screen Dimensions
     aspect_ratio = width / height
     fov_radians = np.deg2rad(fov_degrees)
     
-    # Tan(fov/2) gives us the physical height of the screen in world units
     viewport_height = 2.0 * np.tan(fov_radians / 2.0)
     viewport_width = aspect_ratio * viewport_height
 
     # 3. Vectorized Pixel Grid Generation
-    # We create a grid of X and Y coordinates for the screen
     x_coords = np.linspace(-viewport_width / 2, viewport_width / 2, width)
-    # Y is flipped so +Y is up, -Y is down (standard graphics convention)
     y_coords = np.linspace(viewport_height / 2, -viewport_height / 2, height)
     
     xx, yy = np.meshgrid(x_coords, y_coords)
 
-    # 4. Calculate Ray Directions
-    # For every pixel, we start at the forward vector, and shift it left/right/up/down
-    # using our Right and Up vectors.
+    # --- NEW: Apply Camera Roll (2D Rotation Matrix) ---
+    roll_rad = np.deg2rad(roll_degrees)
+    cos_r = np.cos(roll_rad)
+    sin_r = np.sin(roll_rad)
     
-    # We use np.dstack to combine the 2D grids into a 3D structure easily, 
-    # then reshape it into a flat list of vectors.
-    
-    # The shape of `ray_dirs` will be (height, width, 3)
+    xx_rot = xx * cos_r - yy * sin_r
+    yy_rot = xx * sin_r + yy * cos_r
+
+    # 4. Calculate Ray Directions using the rotated grid
     ray_dirs = np.zeros((height, width, 3), dtype=np.float64)
     
-    # Add the forward component to all rays
-    ray_dirs[..., 0] = forward[0] + xx * right[0] + yy * up[0]
-    ray_dirs[..., 1] = forward[1] + xx * right[1] + yy * up[1]
-    ray_dirs[..., 2] = forward[2] + xx * right[2] + yy * up[2]
+    ray_dirs[..., 0] = forward[0] + xx_rot * right[0] + yy_rot * up[0]
+    ray_dirs[..., 1] = forward[1] + xx_rot * right[1] + yy_rot * up[1]
+    ray_dirs[..., 2] = forward[2] + xx_rot * right[2] + yy_rot * up[2]
 
-    # Normalize all vectors simultaneously
-    # np.linalg.norm along axis=2 gets the length of each [x,y,z] vector
     norms = np.linalg.norm(ray_dirs, axis=2, keepdims=True)
     ray_dirs = ray_dirs / norms
 

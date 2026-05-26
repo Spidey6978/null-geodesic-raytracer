@@ -20,7 +20,7 @@ R_PHOTON = 1.5 * RS
 
 # The Accretion Disk Limits
 DISK_INNER = 3.0 * RS    # == R_ISCO for Schwarzschild
-DISK_OUTER = 12.0 * RS
+DISK_OUTER = 18.0 * RS
 
 # Simulation boundary.
 # 50*RS == 100 was too small: lensed rays on long arcs were terminated early

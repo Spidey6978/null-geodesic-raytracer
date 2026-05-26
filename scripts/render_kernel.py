@@ -33,11 +33,11 @@ _HIT_W = np.array([1.0, 0.18, 0.06, 0.02], dtype=np.float64)
 
 # ── Point Source Star Field Pre-Calculations ──────────────────────────────────
 _RNG         = np.random.default_rng(42)
-_N_STARS     = 3000
+_N_STARS     = 5000
 _STAR_DIRS   = _RNG.normal(size=(_N_STARS, 3)).astype(np.float64)
 _STAR_DIRS   /= np.linalg.norm(_STAR_DIRS, axis=1, keepdims=True)
-_STAR_BRIGHT = (_RNG.power(0.3, _N_STARS) * 0.85 + 0.15).astype(np.float64)
-_STAR_RADII  = np.clip(_RNG.exponential(0.0015, _N_STARS), 0.0008, 0.006).astype(np.float64)
+_STAR_BRIGHT = (_RNG.power(0.4, _N_STARS) * 0.90 + 0.10).astype(np.float64)
+_STAR_RADII  = np.clip(_RNG.exponential(0.0004, _N_STARS), 0.0003, 0.0015).astype(np.float64)
 _STAR_COS_RADII = np.cos(_STAR_RADII).astype(np.float64) # Precalculated for trig elimination
 
 _STAR_COLOUR = _RNG.choice(
@@ -133,7 +133,7 @@ def _disk_colour(hit_radius, hit_phi, hv0, hv1, hv2, weight, out):
     if combined > 16.0: combined = 16.0
 
     # Smooth physical intensity remapping
-    intensity = T_base * (combined ** 0.5) * 0.65 * weight
+    intensity = T_base * (combined ** 0.5) * 0.95 * weight
 
     _blackbody_rgb(T_eff, out)
     cap = 2.0
@@ -252,7 +252,7 @@ def render_pixel_batch(ray_dirs, cam_pos,
 
         # Run Physics Geodesics Integrator
         path, steps_taken, captured, hit_count, hit_radii, hit_phis, hit_vels = integrate_path(
-    cam_pos, ray_dirs[y, x], dt=0.5, max_steps=350
+    cam_pos, ray_dirs[y, x], dt=0.2, max_steps=1500
         )
 
         pixel = np.zeros(3)
@@ -299,7 +299,7 @@ def render_pixel_batch(ray_dirs, cam_pos,
             _volumetric_glow(path, steps_taken, bg_color)
 
             # Absorption Blending: The disk attenuates background light
-            transmission = 0.40 ** hit_count if hit_count > 0 else 1.0
+            transmission = 0.10 ** hit_count if hit_count > 0 else 1.0
             
             pixel[0] += bg_color[0] * transmission
             pixel[1] += bg_color[1] * transmission
@@ -320,14 +320,15 @@ def aces_tonemap(x):
 # ── Main Control ──────────────────────────────────────────────────────────────
 
 def render():
-    WIDTH   = 600
-    HEIGHT  = 400
-    FOV     = 60
-    CAM_POS = np.array([0.0, 1.5, 15.0], dtype=np.float64)
-    LOOK_AT = [0.0, 0.0, 0.0]
+    WIDTH   = 960
+    HEIGHT  = 540
+    FOV     = 30
+    ROLL   = -14.0
+    CAM_POS = np.array([37.5, 0.4, 18.00], dtype=np.float64)
+    LOOK_AT = [-3.0, -1.0, 0.0]
 
     print(f"📷  Camera {WIDTH}×{HEIGHT}  |  Rs={RS:.4f}  R_ISCO={R_ISCO:.4f}")
-    ray_dirs = generate_camera_rays(WIDTH, HEIGHT, FOV, list(CAM_POS), LOOK_AT)
+    ray_dirs = generate_camera_rays(WIDTH, HEIGHT, FOV, list(CAM_POS), LOOK_AT, roll_degrees=ROLL)
     image    = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float64)
 
     print("🔥  Warming up Numba JIT …")
@@ -360,7 +361,7 @@ def render():
         color='white', fontsize=11, pad=10
     )
     plt.tight_layout()
-    out = "accretion_disk_v5.png"
+    out = "accretion_disk_v5 (cinematic test).png"
     plt.savefig(out, bbox_inches='tight', dpi=200, facecolor='black')
     print(f"💾  Saved → {out}")
     plt.show()
