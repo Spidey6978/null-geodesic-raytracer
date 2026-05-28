@@ -273,11 +273,8 @@ def render_frame(width, height, cam_pos, ray_dirs,
         y = idx // width
         x = idx  %  width
 
-        pos0 = cam_pos.copy()
-        vel0 = ray_dirs[y, x].copy()
-
         path, steps_taken, captured, hit_count, hit_radii, hit_phis, hit_vels = integrate_path(
-            pos0, vel0, dt=0.25, max_steps=1200
+            cam_pos, ray_dirs[y, x], dt=0.25, max_steps=1200
         )
 
         pixel = np.zeros(3)
@@ -320,7 +317,7 @@ def render_frame(width, height, cam_pos, ray_dirs,
                 fd1 = path[steps_taken,1] - path[steps_taken-1,1]
                 fd2 = path[steps_taken,2] - path[steps_taken-1,2]
             else:
-                fd0 = vel0[0];  fd1 = vel0[1];  fd2 = vel0[2]
+                fd0 = ray_dirs[y, x][0];  fd1 = ray_dirs[y, x][1];  fd2 = ray_dirs[y, x][2]
 
             final_dir = np.empty(3)
             final_dir[0] = fd0;  final_dir[1] = fd1;  final_dir[2] = fd2
