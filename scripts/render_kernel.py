@@ -322,7 +322,7 @@ def aces_tonemap(x):
 def render():
     WIDTH   = 960
     HEIGHT  = 540
-    FOV     = 30
+    FOV     = 100
     ROLL   = -14.0
     CAM_POS = np.array([37.5, 0.4, 18.00], dtype=np.float64)
     LOOK_AT = [-3.0, -1.0, 0.0]
@@ -361,7 +361,7 @@ def render():
         color='white', fontsize=11, pad=10
     )
     plt.tight_layout()
-    out = "accretion_disk_v5 (cinematic test).png"
+    out = "accretion_disk_v6(a=0.998) (cinematic test2).png"
     plt.savefig(out, bbox_inches='tight', dpi=200, facecolor='black')
     print(f"💾  Saved → {out}")
     plt.show()
