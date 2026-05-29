@@ -252,7 +252,7 @@ def render_pixel_batch(ray_dirs, cam_pos,
 
         # Run Physics Geodesics Integrator
         path, steps_taken, captured, hit_count, hit_radii, hit_phis, hit_vels = integrate_path(
-    cam_pos, ray_dirs[y, x], dt=0.2, max_steps=1500
+    cam_pos, ray_dirs[y, x], dt=0.1, max_steps=1500
         )
 
         pixel = np.zeros(3)
@@ -361,7 +361,7 @@ def render():
         color='white', fontsize=11, pad=10
     )
     plt.tight_layout()
-    out = "accretion_disk_v6(a=0.998) (cinematic test2).png"
+    out = "accretion_disk_v6.7.2 (a=0.998).png"
     plt.savefig(out, bbox_inches='tight', dpi=200, facecolor='black')
     print(f"💾  Saved → {out}")
     plt.show()
