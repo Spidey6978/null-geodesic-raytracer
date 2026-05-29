@@ -192,7 +192,7 @@ def render_frame(width, height, cam_pos, ray_dirs,
         # FIX: Increased dt to 0.4 and dropped max_steps to 500. 
         # This covers exactly 200 spatial units (hitting SIM_BOUNDS) 
         # but cuts the CPU workload by 300%!
-        final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels = integrate_path_lean(
+        final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, _ = integrate_path_lean(
             cam_pos, ray_dirs[y, x], dt=0.4, max_steps=500
         )
 

@@ -135,8 +135,14 @@ def _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, a, M):
     
     # Secure Delta to prevent Mid-Step zero-division near the horizon
     inv_Sigma = 1.0 / Sigma
-    inv_Delta = 1.0 / Delta if abs(Delta) > 1e-7 else (1e7 if Delta >= 0 else -1e7)
-    
+    Delta_safe = Delta
+
+    if Delta_safe > 0.0:
+        Delta_safe = max(Delta_safe, 1e-6)
+    else:
+        Delta_safe = min(Delta_safe, -1e-6)
+
+    inv_Delta = 1.0 / Delta_safe    
     # ── ANALYTICAL SOFTENING (The Quasar Killer) ──
     # By adding 1e-7 to the sin powers, we prevent the infinite singularity at the poles
     # while maintaining a perfectly smooth, differentiable curve for the RK4 integrator.
@@ -184,15 +190,24 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
 
     steps_taken = 0
     captured = False
+    termination_reason = 0
     hit_count = 0
     hit_radii = np.zeros(4, dtype=np.float64)
     hit_phis = np.zeros(4, dtype=np.float64)
     hit_vels = np.zeros((4, 3), dtype=np.float64)
 
-    dt_half = dt * 0.5
+    dt_local = dt
+    if r < 5.0:
+        dt_local = dt * 0.5
+    if r < 3.0:
+        dt_local = dt * 0.25
+    if r < 2.0:
+        dt_local = dt * 0.1
+        
+    dt_half = dt_local * 0.5
     pi_2 = np.pi / 2.0
     
-    capture_radius = R_OUTER_HORIZON + 0.005
+    capture_radius = R_OUTER_HORIZON + 0.05
 
     for i in range(max_steps):
         steps_taken += 1
@@ -210,16 +225,27 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
         pr3 = pr + dpr2*dt_half; pth3 = ptheta + dpth2*dt_half
         dr3, dth3, dph3, dpr3, dpth3, dt3 = _kerr_derivatives(r3, th3, ph3, pr3, pth3, E, L, Q, SPIN, MASS)
         
-        r4 = r + dr3*dt; th4 = theta + dth3*dt; ph4 = phi + dph3*dt
-        pr4 = pr + dpr3*dt; pth4 = ptheta + dpth3*dt
+        r4 = r + dr3*dt_local; th4 = theta + dth3*dt_local; ph4 = phi + dph3*dt_local
+        pr4 = pr + dpr3*dt_local; pth4 = ptheta + dpth3*dt_local
         dr4, dth4, dph4, dpr4, dpth4, dt4 = _kerr_derivatives(r4, th4, ph4, pr4, pth4, E, L, Q, SPIN, MASS)
 
-        r      += (dt / 6.0) * (dr1 + 2*dr2 + 2*dr3 + dr4)
-        theta  += (dt / 6.0) * (dth1 + 2*dth2 + 2*dth3 + dth4)
-        phi    += (dt / 6.0) * (dph1 + 2*dph2 + 2*dph3 + dph4)
-        pr     += (dt / 6.0) * (dpr1 + 2*dpr2 + 2*dpr3 + dpr4)
-        ptheta += (dt / 6.0) * (dpth1 + 2*dpth2 + 2*dpth3 + dpth4)
-        t      += (dt / 6.0) * (dt1 + 2*dt2 + 2*dt3 + dt4)
+        r      += (dt_local / 6.0) * (dr1 + 2*dr2 + 2*dr3 + dr4)
+        theta  += (dt_local / 6.0) * (dth1 + 2*dth2 + 2*dth3 + dth4)
+        phi    += (dt_local / 6.0) * (dph1 + 2*dph2 + 2*dph3 + dph4)
+        pr     += (dt_local / 6.0) * (dpr1 + 2*dpr2 + 2*dpr3 + dpr4)
+        ptheta += (dt_local / 6.0) * (dpth1 + 2*dpth2 + 2*dpth3 + dpth4)
+        t      += (dt_local / 6.0) * (dt1 + 2*dt2 + 2*dt3 + dt4)
+
+        if (
+            not np.isfinite(r)
+            or not np.isfinite(theta)
+            or not np.isfinite(phi)
+            or not np.isfinite(pr)
+            or not np.isfinite(ptheta)
+            ):
+            captured = True
+            termination_reason = 2
+            break
         
         # ── POST-STEP NORMALIZATION (The Ghost Killer) ──
         # Normalizing coordinates outside the derivative function ensures RK4 
@@ -271,11 +297,18 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
 
         if r < capture_radius:
             captured = True
+            termination_reason = 1
             break
-        if not (r <= SIM_BOUNDS): 
+        if not (r <= SIM_BOUNDS):
+            termination_reason = 3 
             break
 
-    return path, steps_taken, captured, hit_count, hit_radii, hit_phis, hit_vels
+    # If we exited the loop without hitting any break condition above,
+    # it means the integrator ran to completion (natural termination).
+    if termination_reason == 0:
+        termination_reason = 4
+
+    return path, steps_taken, captured, hit_count, hit_radii, hit_phis, hit_vels, termination_reason
 
 @njit(nopython=True, cache=True)
 def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
@@ -291,13 +324,24 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
     
     captured = False
     hit_count = 0
+    termination_reason = 0
     hit_radii = np.zeros(4, dtype=np.float64)
     hit_phis = np.zeros(4, dtype=np.float64)
     hit_vels = np.zeros((4, 3), dtype=np.float64)
 
-    dt_half = dt * 0.5
+    dt_local = dt
+    if r < 5.0:
+        dt_local *= 0.5
+
+    if r < 3.0:
+        dt_local *= 0.25
+
+    if r < 2.0:
+        dt_local *= 0.1
+        
+    dt_half = dt_local * 0.5
     pi_2 = np.pi / 2.0
-    capture_radius = R_OUTER_HORIZON + 0.005
+    capture_radius = R_OUTER_HORIZON + 0.05
 
     for i in range(max_steps):
         old_r, old_theta, old_phi = r, theta, phi
@@ -313,15 +357,26 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
         pr3 = pr + dpr2*dt_half; pth3 = ptheta + dpth2*dt_half
         dr3, dth3, dph3, dpr3, dpth3, dt3 = _kerr_derivatives(r3, th3, ph3, pr3, pth3, E, L, Q, SPIN, MASS)
         
-        r4 = r + dr3*dt; th4 = theta + dth3*dt; ph4 = phi + dph3*dt
-        pr4 = pr + dpr3*dt; pth4 = ptheta + dpth3*dt
+        r4 = r + dr3*dt_local; th4 = theta + dth3*dt_local; ph4 = phi + dph3*dt_local
+        pr4 = pr + dpr3*dt_local; pth4 = ptheta + dpth3*dt_local
         dr4, dth4, dph4, dpr4, dpth4, dt4 = _kerr_derivatives(r4, th4, ph4, pr4, pth4, E, L, Q, SPIN, MASS)
 
-        r      += (dt / 6.0) * (dr1 + 2*dr2 + 2*dr3 + dr4)
-        theta  += (dt / 6.0) * (dth1 + 2*dth2 + 2*dth3 + dth4)
-        phi    += (dt / 6.0) * (dph1 + 2*dph2 + 2*dph3 + dph4)
-        pr     += (dt / 6.0) * (dpr1 + 2*dpr2 + 2*dpr3 + dpr4)
-        ptheta += (dt / 6.0) * (dpth1 + 2*dpth2 + 2*dpth3 + dpth4)
+        r      += (dt_local / 6.0) * (dr1 + 2*dr2 + 2*dr3 + dr4)
+        theta  += (dt_local / 6.0) * (dth1 + 2*dth2 + 2*dth3 + dth4)
+        phi    += (dt_local / 6.0) * (dph1 + 2*dph2 + 2*dph3 + dph4)
+        pr     += (dt_local / 6.0) * (dpr1 + 2*dpr2 + 2*dpr3 + dpr4)
+        ptheta += (dt_local / 6.0) * (dpth1 + 2*dpth2 + 2*dpth3 + dpth4)
+        
+        if (
+            not np.isfinite(r)
+            or not np.isfinite(theta)
+            or not np.isfinite(phi)
+            or not np.isfinite(pr)
+            or not np.isfinite(ptheta)
+            ):
+            captured = True
+            termination_reason = 2
+            break
 
         while theta < 0.0 or theta > np.pi:
             if theta < 0.0:
@@ -365,9 +420,15 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
 
         if r < capture_radius:
             captured = True
+            termination_reason = 1
             break
-        if not (r <= SIM_BOUNDS): 
+        if not (r <= SIM_BOUNDS):
+            termination_reason = 3 
             break
+
+    # If we exited the loop without setting a reason, mark natural termination
+    if termination_reason == 0:
+        termination_reason = 4
 
     fdr, fdth, fdph, _, _, _ = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, SPIN, MASS)
     f_vx, f_vy, f_vz = _bl_to_cartesian_vel(r, theta, phi, fdr, fdth, fdph, SPIN)
@@ -375,4 +436,4 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
     final_dir = np.empty(3, dtype=np.float64)
     final_dir[0] = f_vx; final_dir[1] = f_vy; final_dir[2] = f_vz
     
-    return final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels
+    return final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, termination_reason

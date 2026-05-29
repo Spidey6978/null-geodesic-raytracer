@@ -28,8 +28,8 @@ def render():
             
             # 2. Trace the ray
             # We don't need a tiny dt for image rendering, 0.5 is fine for the shadow outline
-            # UNPACKING 6 VARIABLES INSTEAD OF 4
-            path, captured, _, _, _, _ = integrate_path(start_pos, start_vel, dt=0.5, max_steps=1000)
+            # Integrator now returns termination reason as the last value
+            path, steps_taken, captured, hit_count, hit_radii, hit_phis, hit_vels, _ = integrate_path(start_pos, start_vel, dt=0.5, max_steps=1000)
             
             # 3. Paint the pixel
             final_vel = path[-1] - path[-2] 
