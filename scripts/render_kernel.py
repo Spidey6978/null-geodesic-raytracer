@@ -251,16 +251,14 @@ def render_pixel_batch(ray_dirs, cam_pos,
         vel0 = ray_dirs[y, x].copy()
 
         # Run Physics Geodesics Integrator
-        path, steps_taken, captured, hit_count, hit_radii, hit_phis, hit_vels = integrate_path(
-    cam_pos, ray_dirs[y, x], dt=0.2, max_steps=1500
+        path, steps_taken, captured, hit_count, hit_radii, hit_phis, hit_vels, _ = integrate_path(
+    cam_pos, ray_dirs[y, x], dt=0.1, max_steps=1500
         )
 
         pixel = np.zeros(3)
         tmp   = np.zeros(3)
 
         if captured:
-            # Physics Correction: Rays that get captured STILL render their crossings
-            # on their way into the event horizon, completing the inner ring math
             if hit_count > 0:
                 for k in range(int(hit_count)):
                     w  = _HIT_W[k] if k < 4 else 0.01
@@ -361,7 +359,7 @@ def render():
         color='white', fontsize=11, pad=10
     )
     plt.tight_layout()
-    out = "accretion_disk_v6(a=0.998) (cinematic test2).png"
+    out = "accretion_disk_v6.8.12 (a=0.998).png"
     plt.savefig(out, bbox_inches='tight', dpi=200, facecolor='black')
     print(f"💾  Saved → {out}")
     plt.show()
