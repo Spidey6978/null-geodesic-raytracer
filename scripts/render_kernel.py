@@ -359,7 +359,7 @@ def render():
         color='white', fontsize=11, pad=10
     )
     plt.tight_layout()
-    out = "accretion_disk_v6.8.11 (a=0.998).png"
+    out = "accretion_disk_v6.8.12 (a=0.998).png"
     plt.savefig(out, bbox_inches='tight', dpi=200, facecolor='black')
     print(f"💾  Saved → {out}")
     plt.show()

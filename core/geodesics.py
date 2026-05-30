@@ -196,21 +196,22 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
     hit_phis = np.zeros(4, dtype=np.float64)
     hit_vels = np.zeros((4, 3), dtype=np.float64)
 
-    dt_local = dt
-    if r < 5.0:
-        dt_local = dt * 0.5
-    if r < 3.0:
-        dt_local = dt * 0.25
-    if r < 2.0:
-        dt_local = dt * 0.1
-        
-    dt_half = dt_local * 0.5
+    
     pi_2 = np.pi / 2.0
     
     capture_radius = R_OUTER_HORIZON + 0.05
 
     for i in range(max_steps):
         steps_taken += 1
+        dt_local = dt
+        if r < 5.0:
+            dt_local = dt * 0.5
+        if r < 3.0:
+            dt_local = dt * 0.25
+        if r < 2.0:
+            dt_local = dt * 0.1
+        
+        dt_half = dt_local * 0.5
         
         old_r, old_theta, old_phi = r, theta, phi
         old_pr, old_ptheta = pr, ptheta
@@ -329,23 +330,21 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
     hit_phis = np.zeros(4, dtype=np.float64)
     hit_vels = np.zeros((4, 3), dtype=np.float64)
 
-    dt_local = dt
-    if r < 5.0:
-        dt_local *= 0.5
-
-    if r < 3.0:
-        dt_local *= 0.25
-
-    if r < 2.0:
-        dt_local *= 0.1
-        
-    dt_half = dt_local * 0.5
     pi_2 = np.pi / 2.0
     capture_radius = R_OUTER_HORIZON + 0.05
 
     for i in range(max_steps):
         old_r, old_theta, old_phi = r, theta, phi
         old_pr, old_ptheta = pr, ptheta
+        dt_local = dt
+        if r < 5.0:
+            dt_local = dt * 0.5
+        if r < 3.0:
+            dt_local = dt * 0.25
+        if r < 2.0:
+            dt_local = dt * 0.1
+        
+        dt_half = dt_local * 0.5
 
         dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, SPIN, MASS)
         
@@ -464,21 +463,22 @@ def integrate_path_diagnostic(start_pos, start_vel, dt=0.5, max_steps=5000):
     hit_phis = np.zeros(4, dtype=np.float64)
     hit_vels = np.zeros((4, 3), dtype=np.float64)
 
-    dt_local = dt
-    if r < 5.0:
-        dt_local = dt * 0.5
-    if r < 3.0:
-        dt_local = dt * 0.25
-    if r < 2.0:
-        dt_local = dt * 0.1
-        
-    dt_half = dt_local * 0.5
     pi_2 = np.pi / 2.0
     
     capture_radius = R_OUTER_HORIZON + 0.05
 
     for i in range(max_steps):
         steps_taken += 1
+        dt_local = dt
+        
+        if r < 5.0:
+            dt_local = dt * 0.5
+        if r < 3.0:
+            dt_local = dt * 0.25
+        if r < 2.0:
+            dt_local = dt * 0.1
+        
+        dt_half = dt_local * 0.5
         
         old_r, old_theta, old_phi = r, theta, phi
         old_pr, old_ptheta = pr, ptheta
