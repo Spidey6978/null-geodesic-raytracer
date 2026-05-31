@@ -322,7 +322,7 @@ def render():
     HEIGHT  = 540
     FOV     = 100
     ROLL   = -14.0
-    CAM_POS = np.array([37.5, 0.4, 18.00], dtype=np.float64)
+    CAM_POS = np.array([0.0, 20.0, 18.00], dtype=np.float64)
     LOOK_AT = [-3.0, -1.0, 0.0]
 
     print(f"📷  Camera {WIDTH}×{HEIGHT}  |  Rs={RS:.4f}  R_ISCO={R_ISCO:.4f}")
@@ -359,7 +359,13 @@ def render():
         color='white', fontsize=11, pad=10
     )
     plt.tight_layout()
-    out = "accretion_disk_v6.9 (a=0.998).png"
+    # Ensure renders are written to the repository-level `output/` directory
+    from pathlib import Path
+    output_dir = Path(__file__).resolve().parent.parent / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = "accretion_disk_v7.1 (a=0.998).png"
+    out = str(output_dir / filename)
     plt.savefig(out, bbox_inches='tight', dpi=200, facecolor='black')
     print(f"💾  Saved → {out}")
     plt.show()
