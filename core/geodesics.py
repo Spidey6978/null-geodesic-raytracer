@@ -10,6 +10,7 @@ polar explosion using mathematical softening.
 import numpy as np
 from numba import njit
 from .constants import RS, C, SIM_BOUNDS, DISK_INNER, DISK_OUTER, MASS, SPIN, R_OUTER_HORIZON
+from doctor.utils.indices import *
 
 # ── 1. Coordinate Translators ─────────────────────────────────────────────────
 
@@ -438,62 +439,71 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
     return final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, termination_reason
 
 @njit(nopython=True, cache=True)
-def integrate_path_diagnostic(start_pos, start_vel, dt=0.5, max_steps=5000):
+def integrate_path_doctor(start_pos, start_vel, dt=0.5, max_steps=2000):
     px, py, pz = start_pos[0], start_pos[1], start_pos[2]
     vx, vy, vz = start_vel[0], start_vel[1], start_vel[2]
 
     speed = (vx*vx + vy*vy + vz*vz)**0.5
     if speed > 0:
-        vx = (vx / speed) * C
-        vy = (vy / speed) * C
-        vz = (vz / speed) * C
+        vx = (vx / speed) * C; vy = (vy / speed) * C; vz = (vz / speed) * C
 
     r, theta, phi, dot_r, dot_theta, dot_phi = _cartesian_to_bl(px, py, pz, vx, vy, vz, SPIN)
     E, L, Q, pr, ptheta = _compute_conserved_quantities(r, theta, dot_r, dot_theta, dot_phi, SPIN, MASS)
-    t = 0.0
+    
+    # --- DOCTOR SENSORS ---
+    stats = np.zeros(NUM_DOCTOR_METRICS, dtype=np.float64)
+    stats[IDX_E] = E
+    stats[IDX_L] = L
+    stats[IDX_Q] = Q
+    stats[IDX_IMPACT_PARAM] = L / E if E != 0 else 0
+    stats[IDX_CARTER_CONST] = Q / (E*E) if E != 0 else 0
 
-    path = np.zeros((max_steps + 1, 3), dtype=np.float64)
-    path[0, 0] = px; path[0, 1] = py; path[0, 2] = pz
+    min_r = r
+    max_r = r
+    min_delta = r*r - 2.0*MASS*r + SPIN*SPIN
+    min_pole_gap = theta if theta < np.pi/2.0 else np.pi - theta
+    
+    orbit_phi = 0.0
+    theta_turns = 0
+    prev_dth = 0.0
+    steps_in_ergo = 0
+    entered_ergo = 0
+    eq_crossings = 0
+    max_dH = 0.0
 
-    steps_taken = 0
     captured = False
     termination_reason = 0
     hit_count = 0
-    hit_radii = np.zeros(4, dtype=np.float64)
-    hit_phis = np.zeros(4, dtype=np.float64)
-    hit_vels = np.zeros((4, 3), dtype=np.float64)
 
     pi_2 = np.pi / 2.0
-    
-    capture_radius = R_OUTER_HORIZON + 0.05
+    capture_radius = R_OUTER_HORIZON + 0.002
 
     for i in range(max_steps):
-        steps_taken += 1
-        dt_local = dt
-        
-        if r < 5.0:
-            dt_local = dt * 0.5
-        if r < 3.0:
-            dt_local = dt * 0.25
-        if r < 2.0:
-            dt_local = dt * 0.1
-        
-        dt_half = dt_local * 0.5
-        
         old_r, old_theta, old_phi = r, theta, phi
-        old_pr, old_ptheta = pr, ptheta
-
-        dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, SPIN, MASS)
         
-        r2 = r + dr1*dt_half; th2 = theta + dth1*dt_half; ph2 = phi + dph1*dt_half
+        dt_local = dt
+        if r < 5.0: dt_local *= 0.5
+        if r < 3.0: dt_local *= 0.25
+        if r < 2.0: dt_local *= 0.1
+        dt_half = dt_local * 0.5
+
+        # RK4
+        dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, SPIN, MASS)
+        r2 = r + dr1*dt_half
+        if r2 < capture_radius: captured = True; termination_reason = 1; break
+        th2 = theta + dth1*dt_half; ph2 = phi + dph1*dt_half
         pr2 = pr + dpr1*dt_half; pth2 = ptheta + dpth1*dt_half
         dr2, dth2, dph2, dpr2, dpth2, dt2 = _kerr_derivatives(r2, th2, ph2, pr2, pth2, E, L, Q, SPIN, MASS)
         
-        r3 = r + dr2*dt_half; th3 = theta + dth2*dt_half; ph3 = phi + dph2*dt_half
+        r3 = r + dr2*dt_half
+        if r3 < capture_radius: captured = True; termination_reason = 1; break
+        th3 = theta + dth2*dt_half; ph3 = phi + dph2*dt_half
         pr3 = pr + dpr2*dt_half; pth3 = ptheta + dpth2*dt_half
         dr3, dth3, dph3, dpr3, dpth3, dt3 = _kerr_derivatives(r3, th3, ph3, pr3, pth3, E, L, Q, SPIN, MASS)
         
-        r4 = r + dr3*dt_local; th4 = theta + dth3*dt_local; ph4 = phi + dph3*dt_local
+        r4 = r + dr3*dt_local
+        if r4 < capture_radius: captured = True; termination_reason = 1; break
+        th4 = theta + dth3*dt_local; ph4 = phi + dph3*dt_local
         pr4 = pr + dpr3*dt_local; pth4 = ptheta + dpth3*dt_local
         dr4, dth4, dph4, dpr4, dpth4, dt4 = _kerr_derivatives(r4, th4, ph4, pr4, pth4, E, L, Q, SPIN, MASS)
 
@@ -502,78 +512,79 @@ def integrate_path_diagnostic(start_pos, start_vel, dt=0.5, max_steps=5000):
         phi    += (dt_local / 6.0) * (dph1 + 2*dph2 + 2*dph3 + dph4)
         pr     += (dt_local / 6.0) * (dpr1 + 2*dpr2 + 2*dpr3 + dpr4)
         ptheta += (dt_local / 6.0) * (dpth1 + 2*dpth2 + 2*dpth3 + dpth4)
-        t      += (dt_local / 6.0) * (dt1 + 2*dt2 + 2*dt3 + dt4)
 
-        if (
-            not np.isfinite(r)
-            or not np.isfinite(theta)
-            or not np.isfinite(phi)
-            or not np.isfinite(pr)
-            or not np.isfinite(ptheta)
-            ):
+        # --- SENSOR LOGIC ---
+        if r < min_r: min_r = r
+        if r > max_r: max_r = r
+        
+        cur_delta = r*r - 2.0*MASS*r + SPIN*SPIN
+        if cur_delta < min_delta: min_delta = cur_delta
+            
+        gap = theta if theta < pi_2 else np.pi - theta
+        if gap < min_pole_gap: min_pole_gap = gap
+            
+        ergo_bound = MASS + np.sqrt(MASS*MASS - SPIN*SPIN * np.cos(theta)**2)
+        if r < ergo_bound:
+            entered_ergo = 1
+            steps_in_ergo += 1
+
+        orbit_phi += abs(dph1 * dt_local)
+        
+        if dth1 * prev_dth < 0.0: theta_turns += 1
+        prev_dth = dth1
+        
+        # Hamiltonian Validator Check
+        inv_Sigma = 1.0 / (r*r + SPIN*SPIN * np.cos(theta)**2 + 1e-9)
+        H_val = 0.5 * inv_Sigma * (cur_delta*pr*pr + ptheta*ptheta - ((E*(r*r+SPIN*SPIN)-SPIN*L)**2)/(cur_delta+1e-9) + ((L-SPIN*E*np.sin(theta)**2)**2)/(np.sin(theta)**2 + 1e-9))
+        if abs(H_val) > max_dH: max_dH = abs(H_val)
+
+        if (not np.isfinite(r) or not np.isfinite(theta) or not np.isfinite(phi) or 
+            not np.isfinite(pr) or not np.isfinite(ptheta) or abs(r - old_r) > 2.0):
             captured = True
             termination_reason = 2
             break
-        
-        # ── POST-STEP NORMALIZATION (The Ghost Killer) ──
-        # Normalizing coordinates outside the derivative function ensures RK4 
-        # stays continuous, while preparing correct values for disk collision.
-        while theta < 0.0 or theta > np.pi:
-            if theta < 0.0:
-                theta = -theta
-                ptheta = -ptheta
-                phi += np.pi
-            elif theta > np.pi:
-                theta = 2.0 * np.pi - theta
-                ptheta = -ptheta
-                phi += np.pi
 
-        px, py, pz = _bl_to_cartesian_pos(r, theta, phi, SPIN)
-        path[steps_taken, 0] = px
-        path[steps_taken, 1] = py
-        path[steps_taken, 2] = pz
+        while theta < 0.0 or theta > np.pi:
+            if theta < 0.0: theta = -theta; ptheta = -ptheta; phi += np.pi
+            elif theta > np.pi: theta = 2.0 * np.pi - theta; ptheta = -ptheta; phi += np.pi
 
         if (old_theta - pi_2) * (theta - pi_2) <= 0.0:
             d_theta = theta - old_theta
             if d_theta != 0.0:
                 t_frac = (pi_2 - old_theta) / d_theta
                 hit_r = old_r + t_frac * (r - old_r)
-                
                 if (DISK_INNER) <= hit_r <= (DISK_OUTER):
-                    if hit_count < 4:
-                        hit_phi = old_phi + t_frac * (phi - old_phi)
-                        hit_radii[hit_count] = hit_r
-                        hit_phis[hit_count]  = hit_phi
-                        
-                        hit_pr = old_pr + t_frac * (pr - old_pr)
-                        hit_ptheta = old_ptheta + t_frac * (ptheta - old_ptheta)
-                        
-                        hdr, hdth, hdph, _, _, _ = _kerr_derivatives(hit_r, pi_2, hit_phi, hit_pr, hit_ptheta, E, L, Q, SPIN, MASS)
-                        h_vx, h_vy, h_vz = _bl_to_cartesian_vel(hit_r, pi_2, hit_phi, hdr, hdth, hdph, SPIN)
-                        
-                        h_spd = (h_vx*h_vx + h_vy*h_vy + h_vz*h_vz)**0.5
-                        if h_spd > 0:
-                            hit_vels[hit_count, 0] = h_vx / h_spd
-                            hit_vels[hit_count, 1] = h_vy / h_spd
-                            hit_vels[hit_count, 2] = h_vz / h_spd
-                        else:
-                            hit_vels[hit_count, 0] = h_vx
-                            hit_vels[hit_count, 1] = h_vy
-                            hit_vels[hit_count, 2] = h_vz
-                            
-                        hit_count += 1
+                    if hit_count == 0: stats[IDX_HIT_R_1] = hit_r
+                    elif hit_count == 1: stats[IDX_HIT_R_2] = hit_r
+                    elif hit_count == 2: stats[IDX_HIT_R_3] = hit_r
+                    hit_count += 1
+                    eq_crossings += 1
 
-        if r < capture_radius:
-            captured = True
-            termination_reason = 1
-            break
-        if not (r <= SIM_BOUNDS):
-            termination_reason = 3 
-            break
+        if r < capture_radius: captured = True; termination_reason = 1; break
+        if not (r <= SIM_BOUNDS): termination_reason = 3; break
 
-    # If we exited the loop without hitting any break condition above,
-    # it means the integrator ran to completion (natural termination).
     if termination_reason == 0:
-        termination_reason = 4
+        if not captured and r < 5.0:
+            captured = True; termination_reason = 1
+        else:
+            termination_reason = 4
 
-    return path, steps_taken, captured, hit_count, hit_radii, hit_phis, hit_vels, termination_reason
+    # Pack Data
+    stats[IDX_CAPTURED] = 1.0 if captured else 0.0
+    stats[IDX_TERM_REASON] = termination_reason
+    stats[IDX_STEPS] = i + 1
+    stats[IDX_MIN_R] = min_r
+    stats[IDX_MAX_R] = max_r
+    stats[IDX_FINAL_R] = r
+    stats[IDX_FINAL_THETA] = theta
+    stats[IDX_ORBIT_COUNT] = orbit_phi / (2.0 * np.pi)
+    stats[IDX_EQ_CROSSINGS] = eq_crossings
+    stats[IDX_HIT_COUNT] = hit_count
+    stats[IDX_MAX_DH] = max_dH
+    stats[IDX_MIN_POLE_GAP] = min_pole_gap
+    stats[IDX_THETA_TURNS] = theta_turns
+    stats[IDX_STEPS_IN_ERGO] = steps_in_ergo
+    stats[IDX_ENTERED_ERGO] = entered_ergo
+    stats[IDX_MIN_DELTA] = min_delta
+
+    return stats

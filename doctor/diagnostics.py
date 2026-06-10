@@ -1,4 +1,3 @@
-# doctor/diagnostics.py
 from dataclasses import dataclass
 import numpy as np
 from doctor.utils.indices import *
@@ -25,15 +24,13 @@ class DoctorData:
 
     # Disk
     hit_count:           int
+    hit_radii:           list
 
     # Conservation Law Drift (Physics Validator)
     E:                   float
     L:                   float
     Q:                   float
     max_dH:              float
-    max_dE:              float
-    max_dL:              float
-    max_dQ:              float
 
     # Derived Constants
     impact_parameter:    float  # b = L/E
@@ -46,6 +43,11 @@ class DoctorData:
 
 def collect_diagnostics(raw: np.ndarray) -> DoctorData:
     """Wraps the raw Numba float64 array into a human-readable DoctorData object."""
+    hits = []
+    if raw[IDX_HIT_COUNT] > 0: hits.append(raw[IDX_HIT_R_1])
+    if raw[IDX_HIT_COUNT] > 1: hits.append(raw[IDX_HIT_R_2])
+    if raw[IDX_HIT_COUNT] > 2: hits.append(raw[IDX_HIT_R_3])
+
     return DoctorData(
         captured=bool(raw[IDX_CAPTURED]),
         termination_reason=int(raw[IDX_TERM_REASON]),
@@ -60,13 +62,11 @@ def collect_diagnostics(raw: np.ndarray) -> DoctorData:
         theta_turning_points=int(raw[IDX_THETA_TURNS]),
         min_pole_gap=float(raw[IDX_MIN_POLE_GAP]),
         hit_count=int(raw[IDX_HIT_COUNT]),
+        hit_radii=hits,
         E=float(raw[IDX_E]),
         L=float(raw[IDX_L]),
         Q=float(raw[IDX_Q]),
         max_dH=float(raw[IDX_MAX_DH]),
-        max_dE=float(raw[IDX_MAX_DE]),
-        max_dL=float(raw[IDX_MAX_DL]),
-        max_dQ=float(raw[IDX_MAX_DQ]),
         impact_parameter=float(raw[IDX_IMPACT_PARAM]),
         carter_constant=float(raw[IDX_CARTER_CONST]),
         steps_in_ergosphere=int(raw[IDX_STEPS_IN_ERGO]),
