@@ -21,7 +21,7 @@ def apply_discrete_colormap(tensor_layer, color_dict):
     img = np.zeros((h, w, 3), dtype=np.float64)
     
     for val, color in color_dict.items():
-        mask = (tensor_layer == val)
+        mask = (np.round(tensor_layer).astype(np.int32) == val)
         img[mask] = color
         
     return img

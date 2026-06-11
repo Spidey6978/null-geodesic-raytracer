@@ -1,10 +1,12 @@
+import os
+
 import numpy as np
 import cv2
 from numba import njit, prange
 
 from core.camera import generate_camera_rays
 from core.geodesics import integrate_path_doctor
-from doctor.utils.indices import NUM_DOCTOR_METRICS
+from core.indices import NUM_DOCTOR_METRICS
 
 @njit(parallel=True, fastmath=True, cache=True)
 def _generate_diagnostic_tensor(width, height, cam_pos, ray_dirs, dt, max_steps):
@@ -23,7 +25,9 @@ def compute_tensor(width, height, fov, cam_pos, look_at, dt=0.25, max_steps=1500
 
 def save_diagnostic_image(img_float, filepath):
     import os
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    dirpath = os.path.dirname(filepath)
+    if dirpath:
+        os.makedirs(dirpath, exist_ok=True)    
     img_uint8 = (np.clip(img_float, 0.0, 1.0) * 255.0).astype(np.uint8)
     img_bgr = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2BGR)
     cv2.imwrite(filepath, img_bgr)

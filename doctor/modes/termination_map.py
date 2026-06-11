@@ -4,7 +4,7 @@ import time
 
 from doctor.utils.render_base import compute_tensor, save_diagnostic_image
 from doctor.utils.colormaps import apply_discrete_colormap, TERMINATION_COLORS
-from doctor.utils.indices import IDX_TERM_REASON
+from core.indices import IDX_TERM_REASON
 
 def run():
     WIDTH = 960

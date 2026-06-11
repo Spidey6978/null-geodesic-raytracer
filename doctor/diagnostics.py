@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
-from doctor.utils.indices import *
+from core.indices import *
 
 @dataclass
 class DoctorData:
@@ -24,7 +24,7 @@ class DoctorData:
 
     # Disk
     hit_count:           int
-    hit_radii:           list
+    hit_radii:           list[float]   # list of floats, length = hit_count
 
     # Conservation Law Drift (Physics Validator)
     E:                   float

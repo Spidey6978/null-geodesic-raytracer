@@ -9,12 +9,11 @@ from tqdm import tqdm
 from numba import njit, prange
 
 from core.camera    import generate_camera_rays
-# FIX: Import the zero-allocation lean integrator!
 from core.geodesics import integrate_path_lean
 from core.constants import DISK_INNER, DISK_OUTER, RS, C
 
 M      = RS / 2.0
-R_ISCO = 3.0 * RS
+R_ISCO = DISK_INNER
 
 # ── Physics helpers ───────────────────────────────────────────────────────────
 

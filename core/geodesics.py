@@ -10,7 +10,7 @@ polar explosion using mathematical softening.
 import numpy as np
 from numba import njit
 from .constants import RS, C, SIM_BOUNDS, DISK_INNER, DISK_OUTER, MASS, SPIN, R_OUTER_HORIZON
-from doctor.utils.indices import *
+from core.indices import *
 
 # ── 1. Coordinate Translators ─────────────────────────────────────────────────
 
@@ -564,15 +564,12 @@ def integrate_path_doctor(start_pos, start_vel, dt=0.5, max_steps=2000):
         if not (r <= SIM_BOUNDS): termination_reason = 3; break
 
     if termination_reason == 0:
-        if not captured and r < 5.0:
-            captured = True; termination_reason = 1
-        else:
-            termination_reason = 4
+        termination_reason = 4
 
     # Pack Data
     stats[IDX_CAPTURED] = 1.0 if captured else 0.0
     stats[IDX_TERM_REASON] = termination_reason
-    stats[IDX_STEPS] = i + 1
+    stats[IDX_STEPS] = float(i + 1)
     stats[IDX_MIN_R] = min_r
     stats[IDX_MAX_R] = max_r
     stats[IDX_FINAL_R] = r
