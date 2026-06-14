@@ -6,7 +6,7 @@ import numpy as np
 # 1 = Captured (Event Horizon) -> RED
 # 2 = NaN/Math Explosion -> MAGENTA (Immediate flag)
 # 3 = SIM_BOUNDS (Escaped to stars) -> GREEN
-# 4 = Orphan (Photon Sphere Trapped) -> YELLOW
+# 4 = Orphan (Photon Sphere Trapped/MAX_STEPS_REACHED) -> YELLOW
 TERMINATION_COLORS = {
     0: (0.0, 0.0, 0.0),       
     1: (1.0, 0.0, 0.0),       
