@@ -11,14 +11,20 @@ Optimizations implemented:
   6. Radiative Transfer Blending: Blends stars, coronal glow, and disk emissions using absorption.
 """
 
+from curses import meta
+from sys import meta_path
+
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 from numba import njit, prange
+from datetime import datetime
+from pathlib import Path
+import json
 
 from core.camera    import generate_camera_rays
 from core.geodesics import integrate_path
-from core.constants import DISK_INNER, DISK_OUTER, RS, C
+from core.constants import MASS, DISK_INNER, DISK_OUTER, RS, C, SPIN
 
 M      = RS / 2.0
 R_ISCO = 3.0 * RS
@@ -360,15 +366,38 @@ def render():
     )
     plt.tight_layout()
     # Ensure renders are written to the repository-level `output/` directory
-    from pathlib import Path
     output_dir = Path(__file__).resolve().parent.parent / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
+    existing = list(output_dir.glob("accretion_disk_*.png"))
+    serial = len(existing) + 1
 
-    filename = "accretion_disk_v7.1 (a=0.998).png"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"accretion_disk_{serial:04d}_a{SPIN:.3f}_{WIDTH}x{HEIGHT}_{timestamp}.png"
     out = str(output_dir / filename)
     plt.savefig(out, bbox_inches='tight', dpi=200, facecolor='black')
     print(f"💾  Saved → {out}")
     plt.show()
+    
+    meta = {
+    "serial":     serial,
+    "timestamp":  timestamp,
+    "spin":       float(SPIN),
+    "mass":       float(MASS),
+    "disk_inner": float(DISK_INNER),
+    "disk_outer": float(DISK_OUTER),
+    "cam_pos":    list(CAM_POS),
+    "look_at":    LOOK_AT,
+    "fov":        FOV,
+    "dt":         0.1,        # whatever you're using
+    "max_steps":  1500,
+    "width":      WIDTH,
+    "height":     HEIGHT,
+    "render_time_s": elapsed,
+}
+    meta_path = out.replace(".png", ".json")
+    with open(meta_path, "w") as f:
+        json.dump(meta, f, indent=2)
+    print(f"📋  Metadata → {meta_path}")
 
 
 if __name__ == "__main__":

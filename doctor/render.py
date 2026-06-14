@@ -8,9 +8,12 @@ Usage:
     python doctor/render.py --modes   (list all available modes)
 """
 
+import json
 import os
 import sys
 import argparse as _ap
+
+from core.constants import SPIN
 
 _pre = _ap.ArgumentParser(add_help=False)
 _pre.add_argument("--spin",       type=float, default=None)
@@ -228,7 +231,10 @@ def main():
 
     outdir = os.path.join(REPO_ROOT, "doctor", "output")
     os.makedirs(outdir, exist_ok=True)
-    outfile = args.out or os.path.join(outdir, f"{args.mode}.png")
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    default_name = f"{args.mode}_a{SPIN:.3f}_{timestamp}.png"
+    outfile = args.out or os.path.join(outdir, default_name)
 
     fig, ax = plt.subplots(figsize=(12, 6.75), facecolor="black")
     ax.imshow(img, origin="upper", aspect="auto")
@@ -245,6 +251,24 @@ def main():
 
     if args.show:
         plt.show()
+    meta = {
+    "mode":       args.mode,
+    "label":      config.get("label", args.mode),
+    "spin":       float(SPIN),
+    "cam_pos":    args.cam_pos,
+    "look_at":    args.look_at,
+    "fov":        args.fov,
+    "dt":         args.dt,
+    "max_steps":  args.max_steps,
+    "vmin":       config.get("vmin"),
+    "vmax":       config.get("vmax"),
+    "cli":        " ".join(sys.argv),   # full command that produced this
+    "compute_time_s": t1 - t0,
+    }
+    meta_path = outfile.replace(".png", ".json")
+    with open(sys.meta_path, "w") as f:
+        json.dump(meta, f, indent=2)
+    print(f"📋  Metadata → {sys.meta_path}")
 
 
 if __name__ == "__main__":
