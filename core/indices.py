@@ -27,5 +27,4 @@ IDX_MIN_DELTA            = 20
 IDX_HIT_R_1              = 21  # Storing the first hit radius for mapping
 IDX_HIT_R_2              = 22
 IDX_HIT_R_3              = 23
-
 NUM_DOCTOR_METRICS       = 24

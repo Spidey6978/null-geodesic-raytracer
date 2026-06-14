@@ -452,11 +452,11 @@ def integrate_path_doctor(start_pos, start_vel, dt=0.5, max_steps=2000):
     
     # --- DOCTOR SENSORS ---
     stats = np.zeros(NUM_DOCTOR_METRICS, dtype=np.float64)
-    stats[IDX_E] = E
-    stats[IDX_L] = L
-    stats[IDX_Q] = Q
-    stats[IDX_IMPACT_PARAM] = L / E if E != 0 else 0
-    stats[IDX_CARTER_CONST] = Q / (E*E) if E != 0 else 0
+    stats[10] = E
+    stats[11] = L
+    stats[12] = Q
+    stats[14] = L / E if E != 0 else 0
+    stats[15] = Q / (E*E) if E != 0 else 0
 
     min_r = r
     max_r = r
@@ -554,9 +554,9 @@ def integrate_path_doctor(start_pos, start_vel, dt=0.5, max_steps=2000):
                 t_frac = (pi_2 - old_theta) / d_theta
                 hit_r = old_r + t_frac * (r - old_r)
                 if (DISK_INNER) <= hit_r <= (DISK_OUTER):
-                    if hit_count == 0: stats[IDX_HIT_R_1] = hit_r
-                    elif hit_count == 1: stats[IDX_HIT_R_2] = hit_r
-                    elif hit_count == 2: stats[IDX_HIT_R_3] = hit_r
+                    if hit_count == 0: stats[21] = hit_r
+                    elif hit_count == 1: stats[22] = hit_r
+                    elif hit_count == 2: stats[23] = hit_r
                     hit_count += 1
                     eq_crossings += 1
 
@@ -567,21 +567,21 @@ def integrate_path_doctor(start_pos, start_vel, dt=0.5, max_steps=2000):
         termination_reason = 4
 
     # Pack Data
-    stats[IDX_CAPTURED] = 1.0 if captured else 0.0
-    stats[IDX_TERM_REASON] = termination_reason
-    stats[IDX_STEPS] = float(i + 1)
-    stats[IDX_MIN_R] = min_r
-    stats[IDX_MAX_R] = max_r
-    stats[IDX_FINAL_R] = r
-    stats[IDX_FINAL_THETA] = theta
-    stats[IDX_ORBIT_COUNT] = orbit_phi / (2.0 * np.pi)
-    stats[IDX_EQ_CROSSINGS] = eq_crossings
-    stats[IDX_HIT_COUNT] = hit_count
-    stats[IDX_MAX_DH] = max_dH
-    stats[IDX_MIN_POLE_GAP] = min_pole_gap
-    stats[IDX_THETA_TURNS] = theta_turns
-    stats[IDX_STEPS_IN_ERGO] = steps_in_ergo
-    stats[IDX_ENTERED_ERGO] = entered_ergo
-    stats[IDX_MIN_DELTA] = min_delta
+    stats[0] = 1.0 if captured else 0.0
+    stats[1] = termination_reason
+    stats[2] = float(i + 1)
+    stats[3] = min_r
+    stats[4] = max_r
+    stats[5] = r
+    stats[6] = theta
+    stats[7] = orbit_phi / (2.0 * np.pi)
+    stats[8] = eq_crossings
+    stats[9] = hit_count
+    stats[13] = max_dH
+    stats[16] = min_pole_gap
+    stats[17] = theta_turns
+    stats[18] = steps_in_ergo
+    stats[19] = entered_ergo
+    stats[20] = min_delta
 
     return stats
