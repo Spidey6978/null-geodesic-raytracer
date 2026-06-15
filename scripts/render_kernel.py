@@ -12,7 +12,6 @@ Optimizations implemented:
 """
 
 from curses import meta
-from sys import meta_path
 
 import numpy as np
 import matplotlib.pyplot as plt
