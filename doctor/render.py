@@ -266,9 +266,9 @@ def main():
     "compute_time_s": t1 - t0,
     }
     meta_path = outfile.replace(".png", ".json")
-    with open(sys.meta_path, "w") as f:
+    with open(meta_path, "w") as f:
         json.dump(meta, f, indent=2)
-    print(f"📋  Metadata → {sys.meta_path}")
+    print(f"📋  Metadata → {meta_path}")
 
 
 if __name__ == "__main__":
