@@ -13,8 +13,6 @@ import os
 import sys
 import argparse as _ap
 
-from core.constants import SPIN
-
 _pre = _ap.ArgumentParser(add_help=False)
 _pre.add_argument("--spin",       type=float, default=None)
 _pre.add_argument("--mass",       type=float, default=None)
@@ -42,6 +40,8 @@ from core.camera       import generate_camera_rays
 from doctor.diagnostics import collect_diagnostics
 from doctor.utils.render_base import compute_tensor
 from core.indices import *
+from core.constants import SPIN
+
 
 # ── Mode registry ─────────────────────────────────────────────────────────────
 MODES = {
