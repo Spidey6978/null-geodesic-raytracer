@@ -12,19 +12,6 @@ import json
 import os
 import sys
 import argparse as _ap
-
-_pre = _ap.ArgumentParser(add_help=False)
-_pre.add_argument("--spin",       type=float, default=None)
-_pre.add_argument("--mass",       type=float, default=None)
-_pre.add_argument("--disk-inner", type=float, default=None)
-_pre.add_argument("--disk-outer", type=float, default=None)
-_pre_args, _ = _pre.parse_known_args()
-
-if _pre_args.spin       is not None: os.environ["BH_SPIN"]       = str(_pre_args.spin)
-if _pre_args.mass       is not None: os.environ["BH_MASS"]       = str(_pre_args.mass)
-if _pre_args.disk_inner is not None: os.environ["BH_DISK_INNER"] = str(_pre_args.disk_inner)
-if _pre_args.disk_outer is not None: os.environ["BH_DISK_OUTER"] = str(_pre_args.disk_outer)
-
 import importlib
 import time
 
@@ -36,11 +23,10 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from core.camera       import generate_camera_rays
+from core.camera      import generate_camera_rays
 from doctor.diagnostics import collect_diagnostics
 from doctor.utils.render_base import compute_tensor
 from core.indices import *
-from core.constants import SPIN
 
 
 # ── Mode registry ─────────────────────────────────────────────────────────────
@@ -125,6 +111,16 @@ def main():
     parser.add_argument("--roll",      type=float, default=-14.0)
     parser.add_argument("--dt",        type=float, default=0.1)
     parser.add_argument("--max-steps", type=int,   default=1500)
+    
+    # Tracking limits
+    parser.add_argument("--lambda-max", type=float, default=500.0, 
+                        help="Max affine parameter distance")
+
+    # Physics Overrides (Moved from the Pre-Parser directly into the main runtime args)
+    parser.add_argument("--spin",       type=float, default=0.0)
+    parser.add_argument("--mass",       type=float, default=1.0)
+    parser.add_argument("--disk-inner", type=float, default=None)
+    parser.add_argument("--disk-outer", type=float, default=None)
 
     # Camera
     parser.add_argument(
@@ -192,24 +188,20 @@ def main():
     LOOK_AT = np.array(args.look_at, dtype=np.float64)
 
     print(f"    {args.width}×{args.height}  dt={args.dt}  max_steps={args.max_steps}")
-    print(f"    cam={args.cam_pos}  look_at={args.look_at}")
+    print(f"    cam={args.cam_pos}  look_at={args.look_at}  spin={args.spin}")
 
     t0     = time.time()
+    # Explicitly pass the dynamic physics variables to compute_tensor
     tensor = compute_tensor(
         args.width, args.height,
         args.fov, CAM_POS, LOOK_AT,
         dt=args.dt, max_steps=args.max_steps,
-        roll=args.roll,
+        roll=args.roll, spin=args.spin, mass=args.mass
     )
     t1 = time.time()
     print(f"✅  Tensor computed in {t1-t0:.1f}s")
 
     # ── Extract the layer this mode cares about ───────────────────────────────
-    # get_value receives a DoctorData per pixel — we vectorise by building
-    # DoctorData from each row of the tensor and calling get_value.
-    # For performance we allow modes to alternatively expose get_value_from_raw(stats)
-    # which operates directly on the float64 array without dataclass overhead.
-
     H, W = args.height, args.width
     values = np.zeros((H, W), dtype=np.float64)
 
@@ -229,11 +221,11 @@ def main():
     # ── Apply colormap and save ───────────────────────────────────────────────
     img = apply_colormap(values, config)
 
-    outdir = os.path.join(REPO_ROOT, "doctor", "output")
+    outdir = os.path.join(REPO_ROOT, "doctor", "outputs")
     os.makedirs(outdir, exist_ok=True)
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    default_name = f"{args.mode}_a{SPIN:.3f}_{timestamp}.png"
+    default_name = f"{args.mode}_a{args.spin:.3f}_{timestamp}.png"
     outfile = args.out or os.path.join(outdir, default_name)
 
     fig, ax = plt.subplots(figsize=(12, 6.75), facecolor="black")
@@ -242,7 +234,7 @@ def main():
     ax.set_title(
         f"Doctor — {config.get('label', args.mode)}\n"
         f"{args.width}×{args.height}  dt={args.dt}  max_steps={args.max_steps}  "
-        f"a={args.cam_pos}",
+        f"a={args.spin}  M={args.mass}",
         color="white", fontsize=10, pad=8
     )
     plt.tight_layout()
@@ -251,20 +243,23 @@ def main():
 
     if args.show:
         plt.show()
+        
     meta = {
-    "mode":       args.mode,
-    "label":      config.get("label", args.mode),
-    "spin":       float(SPIN),
-    "cam_pos":    args.cam_pos,
-    "look_at":    args.look_at,
-    "fov":        args.fov,
-    "dt":         args.dt,
-    "max_steps":  args.max_steps,
-    "vmin":       config.get("vmin"),
-    "vmax":       config.get("vmax"),
-    "cli":        " ".join(sys.argv),   # full command that produced this
-    "compute_time_s": t1 - t0,
+        "mode":       args.mode,
+        "label":      config.get("label", args.mode),
+        "spin":       args.spin,
+        "mass":       args.mass,
+        "cam_pos":    args.cam_pos,
+        "look_at":    args.look_at,
+        "fov":        args.fov,
+        "dt":         args.dt,
+        "max_steps":  args.max_steps,
+        "vmin":       config.get("vmin"),
+        "vmax":       config.get("vmax"),
+        "cli":        " ".join(sys.argv),   # full command that produced this
+        "compute_time_s": t1 - t0,
     }
+    
     meta_path = outfile.replace(".png", ".json")
     with open(meta_path, "w") as f:
         json.dump(meta, f, indent=2)

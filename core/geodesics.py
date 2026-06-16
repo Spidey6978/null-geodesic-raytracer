@@ -439,7 +439,11 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
     return final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, termination_reason
 
 @njit(nopython=True, cache=True)
-def integrate_path_doctor(start_pos, start_vel, dt=0.5, max_steps=2000):
+def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_horizon, disk_inner, disk_outer, sim_bounds):
+    """
+    Diagnostic rendering engine. Skips path arrays to preserve RAM.
+    Returns a pre-allocated 26-element float array packed with physics metadata.
+    """
     px, py, pz = start_pos[0], start_pos[1], start_pos[2]
     vx, vy, vz = start_vel[0], start_vel[1], start_vel[2]
 
@@ -447,20 +451,20 @@ def integrate_path_doctor(start_pos, start_vel, dt=0.5, max_steps=2000):
     if speed > 0:
         vx = (vx / speed) * C; vy = (vy / speed) * C; vz = (vz / speed) * C
 
-    r, theta, phi, dot_r, dot_theta, dot_phi = _cartesian_to_bl(px, py, pz, vx, vy, vz, SPIN)
-    E, L, Q, pr, ptheta = _compute_conserved_quantities(r, theta, dot_r, dot_theta, dot_phi, SPIN, MASS)
+    r, theta, phi, dot_r, dot_theta, dot_phi = _cartesian_to_bl(px, py, pz, vx, vy, vz, a)
+    E, L, Q, pr, ptheta = _compute_conserved_quantities(r, theta, dot_r, dot_theta, dot_phi, a, mass)
     
     # --- DOCTOR SENSORS ---
-    stats = np.zeros(NUM_DOCTOR_METRICS, dtype=np.float64)
+    stats = np.zeros(25, dtype=np.float64)
     stats[10] = E
     stats[11] = L
     stats[12] = Q
-    stats[14] = L / E if E != 0 else 0
-    stats[15] = Q / (E*E) if E != 0 else 0
+    stats[15] = L / E if E != 0 else 0
+    stats[16] = Q / (E*E) if E != 0 else 0
 
     min_r = r
     max_r = r
-    min_delta = r*r - 2.0*MASS*r + SPIN*SPIN
+    min_delta = r*r - 2.0*mass*r + a*a
     min_pole_gap = theta if theta < np.pi/2.0 else np.pi - theta
     
     orbit_phi = 0.0
@@ -470,13 +474,14 @@ def integrate_path_doctor(start_pos, start_vel, dt=0.5, max_steps=2000):
     entered_ergo = 0
     eq_crossings = 0
     max_dH = 0.0
+    max_dQ = 0.0
 
     captured = False
     termination_reason = 0
     hit_count = 0
 
     pi_2 = np.pi / 2.0
-    capture_radius = R_OUTER_HORIZON + 0.002
+    capture_radius = r_outer_horizon + 0.002
 
     for i in range(max_steps):
         old_r, old_theta, old_phi = r, theta, phi
@@ -488,24 +493,24 @@ def integrate_path_doctor(start_pos, start_vel, dt=0.5, max_steps=2000):
         dt_half = dt_local * 0.5
 
         # RK4
-        dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, SPIN, MASS)
+        dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, a, mass)
         r2 = r + dr1*dt_half
         if r2 < capture_radius: captured = True; termination_reason = 1; break
         th2 = theta + dth1*dt_half; ph2 = phi + dph1*dt_half
         pr2 = pr + dpr1*dt_half; pth2 = ptheta + dpth1*dt_half
-        dr2, dth2, dph2, dpr2, dpth2, dt2 = _kerr_derivatives(r2, th2, ph2, pr2, pth2, E, L, Q, SPIN, MASS)
+        dr2, dth2, dph2, dpr2, dpth2, dt2 = _kerr_derivatives(r2, th2, ph2, pr2, pth2, E, L, Q, a, mass)
         
         r3 = r + dr2*dt_half
         if r3 < capture_radius: captured = True; termination_reason = 1; break
         th3 = theta + dth2*dt_half; ph3 = phi + dph2*dt_half
         pr3 = pr + dpr2*dt_half; pth3 = ptheta + dpth2*dt_half
-        dr3, dth3, dph3, dpr3, dpth3, dt3 = _kerr_derivatives(r3, th3, ph3, pr3, pth3, E, L, Q, SPIN, MASS)
+        dr3, dth3, dph3, dpr3, dpth3, dt3 = _kerr_derivatives(r3, th3, ph3, pr3, pth3, E, L, Q, a, mass)
         
         r4 = r + dr3*dt_local
         if r4 < capture_radius: captured = True; termination_reason = 1; break
         th4 = theta + dth3*dt_local; ph4 = phi + dph3*dt_local
         pr4 = pr + dpr3*dt_local; pth4 = ptheta + dpth3*dt_local
-        dr4, dth4, dph4, dpr4, dpth4, dt4 = _kerr_derivatives(r4, th4, ph4, pr4, pth4, E, L, Q, SPIN, MASS)
+        dr4, dth4, dph4, dpr4, dpth4, dt4 = _kerr_derivatives(r4, th4, ph4, pr4, pth4, E, L, Q, a, mass)
 
         r      += (dt_local / 6.0) * (dr1 + 2*dr2 + 2*dr3 + dr4)
         theta  += (dt_local / 6.0) * (dth1 + 2*dth2 + 2*dth3 + dth4)
@@ -517,26 +522,34 @@ def integrate_path_doctor(start_pos, start_vel, dt=0.5, max_steps=2000):
         if r < min_r: min_r = r
         if r > max_r: max_r = r
         
-        cur_delta = r*r - 2.0*MASS*r + SPIN*SPIN
+        cur_delta = r*r - 2.0*mass*r + a*a
         if cur_delta < min_delta: min_delta = cur_delta
             
         gap = theta if theta < pi_2 else np.pi - theta
         if gap < min_pole_gap: min_pole_gap = gap
             
-        ergo_bound = MASS + np.sqrt(MASS*MASS - SPIN*SPIN * np.cos(theta)**2)
+        ergo_bound = mass + np.sqrt(max(mass*mass - a*a * np.cos(theta)**2, 0.0))
         if r < ergo_bound:
             entered_ergo = 1
             steps_in_ergo += 1
 
-        orbit_phi += abs(dph1 * dt_local)
+        # FIX 1: Exact continuous phase tracking (ignores Pi jumps from coordinate bounding)
+        dphi_step = (dt_local / 6.0) * (dph1 + 2*dph2 + 2*dph3 + dph4)
+        orbit_phi += abs(dphi_step)
         
         if dth1 * prev_dth < 0.0: theta_turns += 1
         prev_dth = dth1
         
-        # Hamiltonian Validator Check
-        inv_Sigma = 1.0 / (r*r + SPIN*SPIN * np.cos(theta)**2 + 1e-9)
-        H_val = 0.5 * inv_Sigma * (cur_delta*pr*pr + ptheta*ptheta - ((E*(r*r+SPIN*SPIN)-SPIN*L)**2)/(cur_delta+1e-9) + ((L-SPIN*E*np.sin(theta)**2)**2)/(np.sin(theta)**2 + 1e-9))
+        # FIX 2: Hamiltonian Validator (Radial Drift)
+        inv_Sigma = 1.0 / (r*r + a*a * np.cos(theta)**2 + 1e-9)
+        H_val = 0.5 * inv_Sigma * (cur_delta*pr*pr + ptheta*ptheta - ((E*(r*r+a*a)-a*L)**2)/(cur_delta+1e-9) + ((L-a*E*np.sin(theta)**2)**2)/(np.sin(theta)**2 + 1e-9))
         if abs(H_val) > max_dH: max_dH = abs(H_val)
+            
+        # FIX 3: Carter Constant Validator (Polar Drift)
+        sin_t_safe = max(abs(np.sin(theta)), 1e-3)
+        cur_Q = ptheta*ptheta + np.cos(theta)**2 * ( (L*L)/(sin_t_safe**2) - a*a * E*E )
+        dQ = abs(cur_Q - Q)
+        if dQ > max_dQ: max_dQ = dQ
 
         if (not np.isfinite(r) or not np.isfinite(theta) or not np.isfinite(phi) or 
             not np.isfinite(pr) or not np.isfinite(ptheta) or abs(r - old_r) > 2.0):
@@ -551,20 +564,26 @@ def integrate_path_doctor(start_pos, start_vel, dt=0.5, max_steps=2000):
         if (old_theta - pi_2) * (theta - pi_2) <= 0.0:
             d_theta = theta - old_theta
             if d_theta != 0.0:
+                # FIX 4: Equatorial Crossings independently tracked from disk hits
+                eq_crossings += 1 
+                
                 t_frac = (pi_2 - old_theta) / d_theta
                 hit_r = old_r + t_frac * (r - old_r)
-                if (DISK_INNER) <= hit_r <= (DISK_OUTER):
-                    if hit_count == 0: stats[21] = hit_r
-                    elif hit_count == 1: stats[22] = hit_r
-                    elif hit_count == 2: stats[23] = hit_r
+                
+                if (disk_inner) <= hit_r <= (disk_outer):
+                    if hit_count == 0: stats[22] = hit_r
+                    elif hit_count == 1: stats[23] = hit_r
+                    elif hit_count == 2: stats[24] = hit_r
                     hit_count += 1
-                    eq_crossings += 1
 
         if r < capture_radius: captured = True; termination_reason = 1; break
-        if not (r <= SIM_BOUNDS): termination_reason = 3; break
+        if not (r <= sim_bounds): termination_reason = 3; break
 
     if termination_reason == 0:
-        termination_reason = 4
+        if not captured and r < 5.0:
+            captured = True; termination_reason = 1
+        else:
+            termination_reason = 4
 
     # Pack Data
     stats[0] = 1.0 if captured else 0.0
@@ -578,10 +597,12 @@ def integrate_path_doctor(start_pos, start_vel, dt=0.5, max_steps=2000):
     stats[8] = eq_crossings
     stats[9] = hit_count
     stats[13] = max_dH
+    stats[14] = max_dQ
     stats[16] = min_pole_gap
     stats[17] = theta_turns
     stats[18] = steps_in_ergo
     stats[19] = entered_ergo
     stats[20] = min_delta
+    stats[21] = min_delta
 
     return stats
