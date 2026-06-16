@@ -585,24 +585,25 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
         else:
             termination_reason = 4
 
-    # Pack Data
-    stats[0] = 1.0 if captured else 0.0
-    stats[1] = termination_reason
-    stats[2] = float(i + 1)
-    stats[3] = min_r
-    stats[4] = max_r
-    stats[5] = r
-    stats[6] = theta
-    stats[7] = orbit_phi / (2.0 * np.pi)
-    stats[8] = eq_crossings
-    stats[9] = hit_count
-    stats[13] = max_dH
-    stats[14] = max_dQ
-    stats[16] = min_pole_gap
-    stats[17] = theta_turns
-    stats[18] = steps_in_ergo
-    stats[19] = entered_ergo
-    stats[20] = min_delta
+    # Pack Data (mapped to core.indices)
+    stats[0]  = 1.0 if captured else 0.0
+    stats[1]  = termination_reason
+    stats[2]  = float(i + 1)
+    stats[3]  = min_r
+    stats[4]  = max_r
+    stats[5]  = r
+    stats[6]  = theta
+    stats[7]  = orbit_phi / (2.0 * np.pi)
+    stats[8]  = eq_crossings
+    stats[9]  = hit_count
+    # Note: IDX_MAX_DQ (13) and IDX_MAX_DH (14) were swapped in indices.py
+    stats[13] = max_dQ
+    stats[14] = max_dH
+    # stats[15..16] set earlier: impact param and Carter const
+    stats[17] = min_pole_gap
+    stats[18] = theta_turns
+    stats[19] = steps_in_ergo
+    stats[20] = entered_ergo
     stats[21] = min_delta
 
     return stats

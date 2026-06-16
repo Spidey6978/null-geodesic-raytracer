@@ -23,11 +23,9 @@ import json
 
 from core.camera    import generate_camera_rays
 from core.geodesics import integrate_path
-from core.constants import MASS, DISK_INNER, DISK_OUTER, RS, C, SPIN
+from core.constants import MASS, DISK_INNER as R_ISCO, DISK_OUTER, RS, C, SPIN
 
 M      = RS / 2.0
-R_ISCO = 3.0 * RS
-
 # ── Planck locus keyframes (Saturated and balanced for dynamic range) ─────────
 _PLANCK_T = np.array([0.00, 0.20, 0.45, 0.65, 0.82, 1.00], dtype=np.float64)
 _PLANCK_R = np.array([0.75, 1.00, 1.00, 1.00, 0.98, 0.70], dtype=np.float64)
@@ -180,7 +178,7 @@ def _star_colour(ray_dir, star_dirs, star_bright, star_cos_radii, star_colour, s
 @njit(cache=True)
 def _volumetric_glow(path, n_steps, out):
     SCALE_H       = RS * 0.35
-    GLOW_INNER_SQ = (DISK_INNER * 0.85) ** 2
+    GLOW_INNER_SQ = (R_ISCO * 0.85) ** 2
     GLOW_OUTER_SQ = (DISK_OUTER * 1.2) ** 2
     tmp = np.zeros(3)
 
@@ -382,7 +380,7 @@ def render():
     "timestamp":  timestamp,
     "spin":       float(SPIN),
     "mass":       float(MASS),
-    "disk_inner": float(DISK_INNER),
+    "disk_inner": float(R_ISCO),
     "disk_outer": float(DISK_OUTER),
     "cam_pos":    list(CAM_POS),
     "look_at":    LOOK_AT,
