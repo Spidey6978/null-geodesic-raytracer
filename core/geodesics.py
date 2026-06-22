@@ -580,10 +580,7 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
         if not (r <= sim_bounds): termination_reason = 3; break
 
     if termination_reason == 0:
-        if not captured and r < 5.0:
-            captured = True; termination_reason = 1
-        else:
-            termination_reason = 4
+        termination_reason = 4
 
     # Pack Data (mapped to core.indices)
     stats[0]  = 1.0 if captured else 0.0

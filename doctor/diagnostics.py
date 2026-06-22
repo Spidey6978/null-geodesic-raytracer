@@ -42,33 +42,32 @@ class DoctorData:
 
 
 def collect_diagnostics(raw: np.ndarray) -> DoctorData:
-    """Wraps the raw Numba float64 array into a human-readable DoctorData object."""
     hits = []
-    if raw[9] > 0: hits.append(raw[21])
-    if raw[9] > 1: hits.append(raw[22])
-    if raw[9] > 2: hits.append(raw[23])
+    if raw[IDX_HIT_COUNT] > 0: hits.append(raw[IDX_HIT_R_1])
+    if raw[IDX_HIT_COUNT] > 1: hits.append(raw[IDX_HIT_R_2])
+    if raw[IDX_HIT_COUNT] > 2: hits.append(raw[IDX_HIT_R_3])
 
     return DoctorData(
-        captured=bool(raw[0]),
-        termination_reason=int(raw[1]),
-        steps_taken=int(raw[2]),
-        min_r=float(raw[3]),
-        max_r=float(raw[4]),
-        final_r=float(raw[5]),
-        final_theta=float(raw[6]),
-        min_delta=float(raw[20]),
-        orbit_count=float(raw[7]),
-        equatorial_crossings=int(raw[8]),
-        theta_turning_points=int(raw[17]),
-        min_pole_gap=float(raw[16]),
-        hit_count=int(raw[9]),
+        captured=bool(raw[IDX_CAPTURED]),
+        termination_reason=int(raw[IDX_TERM_REASON]),
+        steps_taken=int(raw[IDX_STEPS]),
+        min_r=float(raw[IDX_MIN_R]),
+        max_r=float(raw[IDX_MAX_R]),
+        final_r=float(raw[IDX_FINAL_R]),
+        final_theta=float(raw[IDX_FINAL_THETA]),
+        min_delta=float(raw[IDX_MIN_DELTA]),
+        orbit_count=float(raw[IDX_ORBIT_COUNT]),
+        equatorial_crossings=int(raw[IDX_EQ_CROSSINGS]),
+        theta_turning_points=int(raw[IDX_THETA_TURNS]),
+        min_pole_gap=float(raw[IDX_MIN_POLE_GAP]),
+        hit_count=int(raw[IDX_HIT_COUNT]),
         hit_radii=hits,
-        E=float(raw[10]),
-        L=float(raw[11]),
-        Q=float(raw[12]),
-        max_dH=float(raw[13]),
-        impact_parameter=float(raw[14]),
-        carter_constant=float(raw[15]),
-        steps_in_ergosphere=int(raw[18]),
-        entered_ergosphere=bool(raw[19]),
+        E=float(raw[IDX_E]),
+        L=float(raw[IDX_L]),
+        Q=float(raw[IDX_Q]),
+        max_dH=float(raw[IDX_MAX_DH]),
+        impact_parameter=float(raw[IDX_IMPACT_PARAM]),
+        carter_constant=float(raw[IDX_CARTER_CONST]),
+        steps_in_ergosphere=int(raw[IDX_STEPS_IN_ERGO]),
+        entered_ergosphere=bool(raw[IDX_ENTERED_ERGO]),
     )
