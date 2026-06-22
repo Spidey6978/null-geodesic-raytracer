@@ -1,8 +1,3 @@
-"""
-Maps the 24-element float64 array returned by integrate_path_doctor 
-to human-readable indices for the diagnostic tensor.
-"""
-
 IDX_CAPTURED             = 0
 IDX_TERM_REASON          = 1
 IDX_STEPS                = 2
