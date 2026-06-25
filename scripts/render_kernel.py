@@ -11,7 +11,6 @@ Optimizations implemented:
   6. Radiative Transfer Blending: Blends stars, coronal glow, and disk emissions using absorption.
 """
 
-from curses import meta
 
 import numpy as np
 import matplotlib.pyplot as plt
