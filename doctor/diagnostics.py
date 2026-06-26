@@ -21,6 +21,7 @@ class DoctorData:
     equatorial_crossings: int
     theta_turning_points: int
     min_pole_gap:        float
+    orbit_count_signed:  float
 
     # Disk
     hit_count:           int
@@ -31,6 +32,9 @@ class DoctorData:
     L:                   float
     Q:                   float
     max_dH:              float
+    max_dE:              float
+    max_dL:              float
+    max_dphi_step:       float
 
     # Derived Constants
     impact_parameter:    float  # b = L/E
@@ -70,4 +74,8 @@ def collect_diagnostics(raw: np.ndarray) -> DoctorData:
         carter_constant=float(raw[IDX_CARTER_CONST]),
         steps_in_ergosphere=int(raw[IDX_STEPS_IN_ERGO]),
         entered_ergosphere=bool(raw[IDX_ENTERED_ERGO]),
+        max_dE=float(raw[IDX_MAX_DE]),
+        max_dL=float(raw[IDX_MAX_DL]),
+        orbit_count_signed=float(raw[IDX_ORBIT_COUNT_SIGNED]),
+        max_dphi_step=float(raw[IDX_MAX_DPHI_STEP]),
     )

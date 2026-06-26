@@ -40,7 +40,11 @@ MODES = {
     "ergosphere":       "doctor.modes.ergosphere_map",
     "steps":            "doctor.modes.steps_map",
     "impact_param":     "doctor.modes.impact_parameter",
-    "min_pole_gap":     "doctor.modes.min_pole_gap"
+    "min_pole_gap":     "doctor.modes.min_pole_gap",
+    "e_drift":          "doctor.modes.e_drift_map",
+    "l_drift":          "doctor.modes.l_drift_map",
+    "orbit_count_signed": "doctor.modes.orbit_count_signed",
+    "max_dphi_step":    "doctor.modes.max_dphi_step"
 }
 
 
@@ -71,18 +75,22 @@ def apply_colormap(values_2d, config):
     data = values_2d.copy()
 
     if scale == "log":
-        # Shift to positive before log
-        data = np.where(data > 0, data, np.nanmin(data[data > 0]) * 0.01)
-        data  = np.log10(data)
-        vmin  = np.log10(max(vmin, 1e-10))
-        vmax  = np.log10(max(vmax, 1e-10))
+        positive = data[data > 0]
+        if positive.size > 0:
+            floor = float(np.nanmin(positive)) * 0.01
+        else:
+            floor = 1e-10
+        data = np.where(data > 0, data, floor)
+        data = np.log10(data)
+        vmin = np.log10(max(vmin, 1e-10))
+        vmax = np.log10(max(vmax, 1e-10))
 
     # Normalise to [0, 1]
     span = vmax - vmin
     if span < 1e-12:
         span = 1.0
     normalised = np.clip((data - vmin) / span, 0.0, 1.0)
-    normalised = np.nan_to_num(normalised, 0.0)
+    normalised = np.nan_to_num(normalised, nan=0.5, posinf=1.0, neginf=0.0)
 
     cmap = mcm.get_cmap(cmap_spec)
     rgb  = cmap(normalised)[:, :, :3]   # drop alpha channel

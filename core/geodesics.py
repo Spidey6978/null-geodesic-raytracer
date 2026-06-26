@@ -9,6 +9,7 @@ polar explosion using mathematical softening.
 """
 import numpy as np
 from numba import njit
+from scipy import stats
 from .constants import RS, C, SIM_BOUNDS, DISK_INNER, DISK_OUTER, MASS, SPIN, R_OUTER_HORIZON
 from core.indices import *
 
@@ -442,7 +443,7 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
 def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_horizon, disk_inner, disk_outer, sim_bounds):
     """
     Diagnostic rendering engine. Skips path arrays to preserve RAM.
-    Returns a pre-allocated 26-element float array packed with physics metadata.
+    Returns a pre-allocated doctor metric array packed with physics metadata.
     """
     px, py, pz = start_pos[0], start_pos[1], start_pos[2]
     vx, vy, vz = start_vel[0], start_vel[1], start_vel[2]
@@ -455,7 +456,7 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
     E, L, Q, pr, ptheta = _compute_conserved_quantities(r, theta, dot_r, dot_theta, dot_phi, a, mass)
     
     # --- DOCTOR SENSORS ---
-    stats = np.zeros(25, dtype=np.float64)
+    stats = np.zeros(NUM_DOCTOR_METRICS, dtype=np.float64)
     stats[10] = E
     stats[11] = L
     stats[12] = Q
@@ -475,6 +476,10 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
     eq_crossings = 0
     max_dH = 0.0
     max_dQ = 0.0
+    max_dE = 0.0
+    max_dL = 0.0
+    orbit_phi_signed = 0.0
+    max_dphi_step = 0.0
 
     captured = False
     termination_reason = 0
@@ -550,6 +555,30 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
         cur_Q = ptheta*ptheta + np.cos(theta)**2 * ( (L*L)/(sin_t_safe**2) - a*a * E*E )
         dQ = abs(cur_Q - Q)
         if dQ > max_dQ: max_dQ = dQ
+        _, _, dph_chk, _, _, dt_chk = _kerr_derivatives(
+            r, theta, phi, pr, ptheta, E, L, Q, a, mass
+        )
+        sin_t_chk = np.sin(theta)
+        cos_t_chk = np.cos(theta)
+        Sigma_chk = r*r + a*a*cos_t_chk*cos_t_chk
+        g_tt_chk    = -(1.0 - 2.0*mass*r/Sigma_chk)
+        g_tphi_chk  = -2.0*mass*a*r * sin_t_chk**2 / Sigma_chk
+        g_phiphi_chk = (r*r + a*a + 2.0*mass*a*a*r * sin_t_chk**2 / Sigma_chk) * sin_t_chk**2
+
+        p_t_chk   = g_tt_chk * dt_chk + g_tphi_chk * dph_chk
+        p_phi_chk = g_tphi_chk * dt_chk + g_phiphi_chk * dph_chk
+        E_chk = -p_t_chk
+        L_chk = p_phi_chk
+
+        dE = abs(E_chk - E)
+        dL = abs(L_chk - L)
+        if dE > max_dE: max_dE = dE
+        if dL > max_dL: max_dL = dL
+
+        # Signed orbit count + max single-step dphi
+        orbit_phi_signed += dphi_step
+        abs_dphi = abs(dphi_step)
+        if abs_dphi > max_dphi_step: max_dphi_step = abs_dphi
 
         if (not np.isfinite(r) or not np.isfinite(theta) or not np.isfinite(phi) or 
             not np.isfinite(pr) or not np.isfinite(ptheta) or abs(r - old_r) > 2.0):
@@ -602,5 +631,9 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
     stats[19] = steps_in_ergo
     stats[20] = entered_ergo
     stats[21] = min_delta
+    stats[25] = max_dE
+    stats[26] = max_dL
+    stats[27] = orbit_phi_signed / (2.0 * np.pi)
+    stats[28] = max_dphi_step
 
     return stats
