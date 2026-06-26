@@ -126,12 +126,12 @@ def main():
     # Camera
     parser.add_argument(
         "--cam-pos", nargs=3, type=float,
-        default=[6.5, 0.4, 18.0],
+        default=[0.0, 0.0, 20.0],
         metavar=("X", "Y", "Z")
     )
     parser.add_argument(
         "--look-at", nargs=3, type=float,
-        default=[-3.0, -1.0, 0.0],
+        default=[0.0, 0.0, 0.0],
         metavar=("X", "Y", "Z")
     )
 
