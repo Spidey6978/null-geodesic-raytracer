@@ -40,6 +40,7 @@ MODES = {
     "ergosphere":       "doctor.modes.ergosphere_map",
     "steps":            "doctor.modes.steps_map",
     "impact_param":     "doctor.modes.impact_parameter",
+    "min_pole_gap":     "doctor.modes.min_pole_gap"
 }
 
 
