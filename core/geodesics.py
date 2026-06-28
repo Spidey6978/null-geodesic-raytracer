@@ -554,6 +554,15 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
         pr     += (dt_local / 6.0) * (dpr1 + 2*dpr2 + 2*dpr3 + dpr4)
         ptheta += (dt_local / 6.0) * (dpth1 + 2*dpth2 + 2*dpth3 + dpth4)
         
+        while theta < 0.0 or theta > np.pi:
+            if theta < 0.0: theta = -theta; ptheta = -ptheta; phi += np.pi
+            elif theta > np.pi: theta = 2.0 * np.pi - theta; ptheta = -ptheta; phi += np.pi
+            
+        ergo_bound = mass + np.sqrt(max(mass*mass - a*a*np.cos(theta)**2, 0.0))
+        if r < ergo_bound:
+            entered_ergo = 1
+            steps_in_ergo += 1
+        
         if r < capture_radius:
             captured = True
             termination_reason = 1
@@ -568,11 +577,6 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
             
         gap = theta if theta < pi_2 else np.pi - theta
         if gap < min_pole_gap: min_pole_gap = gap
-            
-        ergo_bound = mass + np.sqrt(max(mass*mass - a*a * np.cos(theta)**2, 0.0))
-        if r < ergo_bound:
-            entered_ergo = 1
-            steps_in_ergo += 1
 
         # FIX 1: Exact continuous phase tracking (ignores Pi jumps from coordinate bounding)
         dphi_step = (dt_local / 6.0) * (dph1 + 2*dph2 + 2*dph3 + dph4)
@@ -621,10 +625,6 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
             captured = True
             termination_reason = 2
             break
-
-        while theta < 0.0 or theta > np.pi:
-            if theta < 0.0: theta = -theta; ptheta = -ptheta; phi += np.pi
-            elif theta > np.pi: theta = 2.0 * np.pi - theta; ptheta = -ptheta; phi += np.pi
 
         if (old_theta - pi_2) * (theta - pi_2) <= 0.0:
             d_theta = theta - old_theta
