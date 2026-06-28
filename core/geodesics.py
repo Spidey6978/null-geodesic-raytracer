@@ -9,7 +9,6 @@ polar explosion using mathematical softening.
 """
 import numpy as np
 from numba import njit
-from scipy import stats
 from .constants import RS, C, SIM_BOUNDS, DISK_INNER, DISK_OUTER, MASS, SPIN, R_OUTER_HORIZON
 from core.indices import *
 
@@ -128,49 +127,50 @@ def _compute_conserved_quantities(r, theta, dot_r, dot_theta, dot_phi, a, M):
 
 @njit(nopython=True, cache=True)
 def _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, a, M):
-    # No coordinate bounces inside the derivatives! RK4 remains perfectly smooth.
     sin_t = np.sin(theta)
     cos_t = np.cos(theta)
-    
+
     Sigma = r*r + a*a * cos_t*cos_t
     Delta = r*r - 2.0*M*r + a*a
-    
-    # Secure Delta to prevent Mid-Step zero-division near the horizon
-    inv_Sigma = 1.0 / Sigma
-    Delta_safe = Delta
 
-    if Delta_safe > 0.0:
-        Delta_safe = max(Delta_safe, 1e-6)
+    inv_Sigma = 1.0 / max(Sigma, 1e-10)
+
+    # Horizon-aware softening — floor scales with M² not an absolute
+    Delta_floor = 1e-4 * M * M
+    if Delta > 0.0:
+        Delta_safe = max(Delta, Delta_floor)
     else:
-        Delta_safe = min(Delta_safe, -1e-6)
+        Delta_safe = min(Delta, -Delta_floor)
+    inv_Delta = 1.0 / Delta_safe
 
-    inv_Delta = 1.0 / Delta_safe    
-    # ── ANALYTICAL SOFTENING (The Quasar Killer) ──
-    # By adding 1e-7 to the sin powers, we prevent the infinite singularity at the poles
-    # while maintaining a perfectly smooth, differentiable curve for the RK4 integrator.
-    # No min/max caps required!
-    sin2 = sin_t * sin_t
+    # Polar softening — unchanged
+    sin2     = sin_t * sin_t
     inv_sin2 = 1.0 / (sin2 + 1e-7)
     soft_sin4 = sin2 * sin2 + 1e-7
-    
-    P = E * (r*r + a*a) - a * L
-    
-    dr_dlam  = Delta * inv_Sigma * pr
-    dth_dlam = ptheta * inv_Sigma
-    dph_dlam = inv_Sigma * ( (L * inv_sin2) - a*E + (a*P * inv_Delta) )
-    dt_dlam  = inv_Sigma * ( -a * (a*E * sin2 - L) + ((r*r + a*a)*P * inv_Delta) )
-    
-    K = Q + (a*E - L)**2
-    
-    # PURE GRAVITY: The true Kerr gravitational pull
-    dpr_dlam = inv_Sigma * ( ((2.0*r*E*P - (r - M)*K) * inv_Delta) - 2.0*(r - M)*pr*pr )
-    
-    # SMOOTH CENTRIFUGAL BARRIER: Perfectly balanced repulsion at the poles
-    dptheta_dlam = (cos_t * sin_t * inv_Sigma) * ( (L*L / soft_sin4) - a*a * E*E )
-    
-    return dr_dlam, dth_dlam, dph_dlam, dpr_dlam, dptheta_dlam, dt_dlam
 
-# ── 3. The Runge-Kutta 4 Integrators ──────────────────────────────────────────
+    P = E * (r*r + a*a) - a * L
+
+    # Cap P/Delta and K/Delta ratios to prevent near-horizon explosion
+    _cap = 1e4 / max(M, 1e-10)
+
+    P_over_D = P * inv_Delta
+    if   P_over_D >  _cap: P_over_D =  _cap
+    elif P_over_D < -_cap: P_over_D = -_cap
+
+    K = Q + (a*E - L)**2
+    K_over_D = K * inv_Delta
+    if   K_over_D >  _cap: K_over_D =  _cap
+    elif K_over_D < -_cap: K_over_D = -_cap
+
+    dr_dlam      = Delta    * inv_Sigma * pr
+    dth_dlam     = ptheta   * inv_Sigma
+    dph_dlam     = inv_Sigma * (L * inv_sin2  - a*E + a*P_over_D)
+    dt_dlam      = inv_Sigma * (-a*(a*E*sin2 - L) + (r*r + a*a)*P_over_D)
+    dpr_dlam     = inv_Sigma * (2.0*r*E*P_over_D - (r-M)*K_over_D
+                                - 2.0*(r-M)*pr*pr)
+    dptheta_dlam = (cos_t * sin_t * inv_Sigma) * (L*L/soft_sin4 - a*a*E*E)
+
+    return dr_dlam, dth_dlam, dph_dlam, dpr_dlam, dptheta_dlam, dt_dlam
 
 @njit(nopython=True, cache=True)
 def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
@@ -204,6 +204,13 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
     capture_radius = R_OUTER_HORIZON + 0.05
 
     for i in range(max_steps):
+        # ── PRE-STEP CAPTURE CHECK ─────────────────────────────────────────
+        # Avoids evaluating derivatives at r < capture_radius where
+        # Delta is negative and inv_Delta would be large even with softening.
+        if r < capture_radius:
+            captured = True
+            termination_reason = 1
+            break
         steps_taken += 1
         dt_local = dt
         if r < 5.0:
@@ -297,15 +304,10 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
                             hit_vels[hit_count, 2] = h_vz
                             
                         hit_count += 1
-
-        if r < capture_radius:
-            captured = True
-            termination_reason = 1
-            break
         if not (r <= SIM_BOUNDS):
             termination_reason = 3 
             break
-
+        
     # If we exited the loop without hitting any break condition above,
     # it means the integrator ran to completion (natural termination).
     if termination_reason == 0:
@@ -336,6 +338,13 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
     capture_radius = R_OUTER_HORIZON + 0.05
 
     for i in range(max_steps):
+        # ── PRE-STEP CAPTURE CHECK ─────────────────────────────────────────
+        # Avoids evaluating derivatives at r < capture_radius where
+        # Delta is negative and inv_Delta would be large even with softening.
+        if r < capture_radius:
+            captured = True
+            termination_reason = 1
+            break
         old_r, old_theta, old_phi = r, theta, phi
         old_pr, old_ptheta = pr, ptheta
         dt_local = dt
@@ -419,10 +428,6 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
                             
                         hit_count += 1
 
-        if r < capture_radius:
-            captured = True
-            termination_reason = 1
-            break
         if not (r <= SIM_BOUNDS):
             termination_reason = 3 
             break
@@ -480,6 +485,8 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
     max_dL = 0.0
     orbit_phi_signed = 0.0
     max_dphi_step = 0.0
+    max_abs_dphdlam = 0.0
+    max_inv_sin2    = 0.0
 
     captured = False
     termination_reason = 0
@@ -489,6 +496,9 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
     capture_radius = r_outer_horizon + 0.002
 
     for i in range(max_steps):
+        # ── PRE-STEP CAPTURE CHECK ─────────────────────────────────────────
+        # Avoids evaluating derivatives at r < capture_radius where
+        # Delta is negative and inv_Delta would be large even with softening.
         old_r, old_theta, old_phi = r, theta, phi
         
         dt_local = dt
@@ -499,29 +509,55 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
 
         # RK4
         dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, a, mass)
+        abs_dph1 = abs(dph1)
+        if abs_dph1 > max_abs_dphdlam: max_abs_dphdlam = abs_dph1
+        sin_t1 = np.sin(theta)
+        inv_sin2_1 = 1.0 / (sin_t1*sin_t1 + 1e-7)
+        if inv_sin2_1 > max_inv_sin2: max_inv_sin2 = inv_sin2_1
+
         r2 = r + dr1*dt_half
         if r2 < capture_radius: captured = True; termination_reason = 1; break
         th2 = theta + dth1*dt_half; ph2 = phi + dph1*dt_half
         pr2 = pr + dpr1*dt_half; pth2 = ptheta + dpth1*dt_half
         dr2, dth2, dph2, dpr2, dpth2, dt2 = _kerr_derivatives(r2, th2, ph2, pr2, pth2, E, L, Q, a, mass)
+        abs_dph2 = abs(dph2)
+        if abs_dph2 > max_abs_dphdlam: max_abs_dphdlam = abs_dph2
+        sin_t2 = np.sin(th2)
+        inv_sin2_2 = 1.0 / (sin_t2*sin_t2 + 1e-7)
+        if inv_sin2_2 > max_inv_sin2: max_inv_sin2 = inv_sin2_2
         
         r3 = r + dr2*dt_half
         if r3 < capture_radius: captured = True; termination_reason = 1; break
         th3 = theta + dth2*dt_half; ph3 = phi + dph2*dt_half
         pr3 = pr + dpr2*dt_half; pth3 = ptheta + dpth2*dt_half
         dr3, dth3, dph3, dpr3, dpth3, dt3 = _kerr_derivatives(r3, th3, ph3, pr3, pth3, E, L, Q, a, mass)
-        
+        abs_dph3 = abs(dph3)
+        if abs_dph3 > max_abs_dphdlam: max_abs_dphdlam = abs_dph3
+        sin_t3 = np.sin(th3)
+        inv_sin2_3 = 1.0 / (sin_t3*sin_t3 + 1e-7)
+        if inv_sin2_3 > max_inv_sin2: max_inv_sin2 = inv_sin2_3
+
         r4 = r + dr3*dt_local
         if r4 < capture_radius: captured = True; termination_reason = 1; break
         th4 = theta + dth3*dt_local; ph4 = phi + dph3*dt_local
         pr4 = pr + dpr3*dt_local; pth4 = ptheta + dpth3*dt_local
         dr4, dth4, dph4, dpr4, dpth4, dt4 = _kerr_derivatives(r4, th4, ph4, pr4, pth4, E, L, Q, a, mass)
+        abs_dph4 = abs(dph4)
+        if abs_dph4 > max_abs_dphdlam: max_abs_dphdlam = abs_dph4
+        sin_t4 = np.sin(th4)
+        inv_sin2_4 = 1.0 / (sin_t4*sin_t4 + 1e-7)
+        if inv_sin2_4 > max_inv_sin2: max_inv_sin2 = inv_sin2_4
 
         r      += (dt_local / 6.0) * (dr1 + 2*dr2 + 2*dr3 + dr4)
         theta  += (dt_local / 6.0) * (dth1 + 2*dth2 + 2*dth3 + dth4)
         phi    += (dt_local / 6.0) * (dph1 + 2*dph2 + 2*dph3 + dph4)
         pr     += (dt_local / 6.0) * (dpr1 + 2*dpr2 + 2*dpr3 + dpr4)
         ptheta += (dt_local / 6.0) * (dpth1 + 2*dpth2 + 2*dpth3 + dpth4)
+        
+        if r < capture_radius:
+            captured = True
+            termination_reason = 1
+            break
 
         # --- SENSOR LOGIC ---
         if r < min_r: min_r = r
@@ -605,7 +641,6 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
                     elif hit_count == 2: stats[24] = hit_r
                     hit_count += 1
 
-        if r < capture_radius: captured = True; termination_reason = 1; break
         if not (r <= sim_bounds): termination_reason = 3; break
 
     if termination_reason == 0:
@@ -635,5 +670,7 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
     stats[26] = max_dL
     stats[27] = orbit_phi_signed / (2.0 * np.pi)
     stats[28] = max_dphi_step
+    stats[29] = max_abs_dphdlam
+    stats[30] = max_inv_sin2
 
     return stats

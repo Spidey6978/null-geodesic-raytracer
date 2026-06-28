@@ -9,8 +9,8 @@ from core.geodesics import integrate_path_doctor
 from core.indices import NUM_DOCTOR_METRICS
 
 @njit(parallel=True, fastmath=True, cache=True)
-def _generate_diagnostic_tensor(width, height, cam_pos, ray_dirs, dt, max_steps, mass, a, r_outer_horizon, disk_inner, disk_outer, sim_bounds):
-    tensor = np.zeros((height, width, NUM_DOCTOR_METRICS), dtype=np.float64)
+def _generate_diagnostic_tensor(width, height, cam_pos, ray_dirs, dt, max_steps, mass, a, r_outer_horizon, disk_inner, disk_outer, sim_bounds, num_metrics):
+    tensor = np.zeros((height, width, num_metrics), dtype=np.float64)
     for idx in prange(height * width):
         y = idx // width
         x = idx % width
@@ -18,7 +18,7 @@ def _generate_diagnostic_tensor(width, height, cam_pos, ray_dirs, dt, max_steps,
             cam_pos, ray_dirs[y, x], dt, max_steps, 
             mass, a, r_outer_horizon, disk_inner, disk_outer, sim_bounds
         )
-        for k in range(NUM_DOCTOR_METRICS):
+        for k in range(num_metrics):
             tensor[y, x, k] = stats[k]
     return tensor
 
@@ -46,7 +46,8 @@ def compute_tensor(width, height, fov, cam_pos, look_at, dt=0.25, max_steps=1500
     
     return _generate_diagnostic_tensor(
         width, height, cam_pos, ray_dirs, dt, max_steps, 
-        mass, a, r_outer_horizon, disk_inner, disk_outer, sim_bounds
+        mass, a, r_outer_horizon, disk_inner, disk_outer, sim_bounds,
+        NUM_DOCTOR_METRICS
     )
 
 def save_diagnostic_image(img_float, filepath):

@@ -44,7 +44,9 @@ MODES = {
     "e_drift":          "doctor.modes.e_drift_map",
     "l_drift":          "doctor.modes.l_drift_map",
     "orbit_count_signed": "doctor.modes.orbit_count_signed",
-    "max_dphi_step":    "doctor.modes.max_dphi_step"
+    "max_dphi_step":    "doctor.modes.max_dphi_step",
+    "max_dphdlam":      "doctor.modes.max_dphdlam",
+    "max_inv_sin2":     "doctor.modes.max_inv_sin2"
 }
 
 
@@ -117,16 +119,16 @@ def main():
     parser.add_argument("--width",     type=int,   default=960)
     parser.add_argument("--height",    type=int,   default=540)
     parser.add_argument("--fov",       type=float, default=100.0)
-    parser.add_argument("--roll",      type=float, default=-14.0)
-    parser.add_argument("--dt",        type=float, default=0.1)
-    parser.add_argument("--max-steps", type=int,   default=1500)
+    parser.add_argument("--roll",      type=float, default=0.0)
+    parser.add_argument("--dt",        type=float, default=0.2)
+    parser.add_argument("--max-steps", type=int,   default=5000)
     
     # Tracking limits
     parser.add_argument("--lambda-max", type=float, default=500.0, 
                         help="Max affine parameter distance")
 
     # Physics Overrides (Moved from the Pre-Parser directly into the main runtime args)
-    parser.add_argument("--spin",       type=float, default=0.0)
+    parser.add_argument("--spin",       type=float, default=0.998)
     parser.add_argument("--mass",       type=float, default=1.0)
     parser.add_argument("--disk-inner", type=float, default=None)
     parser.add_argument("--disk-outer", type=float, default=None)

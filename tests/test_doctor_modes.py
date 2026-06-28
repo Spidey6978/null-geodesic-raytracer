@@ -1,3 +1,6 @@
+import sys
+from unittest.mock import patch
+
 import numpy as np
 
 from doctor.diagnostics import DoctorData
@@ -5,12 +8,14 @@ from doctor.modes import min_pole_gap
 from doctor.modes import ergosphere_map
 from doctor.modes import e_drift_map, l_drift_map, orbit_count_signed, max_dphi_step
 from core.indices import (
+    IDX_TERM_REASON,
     IDX_MIN_POLE_GAP,
     IDX_STEPS_IN_ERGO,
     IDX_MAX_DE,
     IDX_MAX_DL,
     IDX_ORBIT_COUNT_SIGNED,
     IDX_MAX_DPHI_STEP,
+    NUM_DOCTOR_METRICS,
 )
 
 
@@ -74,10 +79,94 @@ def test_drift_and_orbit_modes_read_their_indices():
     assert max_dphi_step.get_value_from_raw(stats) == 0.33
 
 
-def test_new_modes_handle_short_stats_arrays_without_crashing():
+def test_new_modes_raise_for_short_stats_arrays():
     stats = np.zeros(25, dtype=np.float64)
 
-    assert np.isnan(e_drift_map.get_value_from_raw(stats))
-    assert np.isnan(l_drift_map.get_value_from_raw(stats))
-    assert np.isnan(orbit_count_signed.get_value_from_raw(stats))
-    assert np.isnan(max_dphi_step.get_value_from_raw(stats))
+    with np.testing.assert_raises(IndexError):
+        e_drift_map.get_value_from_raw(stats)
+    with np.testing.assert_raises(IndexError):
+        l_drift_map.get_value_from_raw(stats)
+    with np.testing.assert_raises(IndexError):
+        orbit_count_signed.get_value_from_raw(stats)
+    with np.testing.assert_raises(IndexError):
+        max_dphi_step.get_value_from_raw(stats)
+
+
+def test_pixel_probe_main_runs_with_sample_args():
+    import doctor.tools.pixel_probe as pixel_probe
+
+    sample_stats = np.zeros(NUM_DOCTOR_METRICS, dtype=np.float64)
+    sample_stats[0] = 0.0
+    sample_stats[1] = 4.0
+    sample_stats[3] = 2.0
+    sample_stats[13] = 0.1
+    sample_stats[14] = 0.2
+    sample_stats[17] = 0.3
+    sample_stats[25] = 1e-4
+    sample_stats[26] = 2e-4
+    sample_stats[28] = 0.01
+    sample_stats[29] = 0.02
+    sample_stats[30] = 0.03
+
+    with patch.object(pixel_probe, "generate_camera_rays", return_value=np.zeros((2, 2, 3), dtype=np.float64)), \
+         patch.object(pixel_probe, "integrate_path_doctor", return_value=sample_stats):
+        original_argv = sys.argv[:]
+        sys.argv = [
+            "pixel_probe.py",
+            "--probe-x", "1",
+            "--probe-y", "1",
+            "--width", "2",
+            "--height", "2",
+            "--radius", "0",
+        ]
+        try:
+            pixel_probe.main()
+        finally:
+            sys.argv = original_argv
+
+
+def test_pixel_probe_does_not_swallow_integrator_errors():
+    import doctor.tools.pixel_probe as pixel_probe
+
+    with patch.object(pixel_probe, "generate_camera_rays", return_value=np.zeros((1, 1, 3), dtype=np.float64)), \
+         patch.object(pixel_probe, "integrate_path_doctor", side_effect=IndexError("stale metric layout")):
+        original_argv = sys.argv[:]
+        sys.argv = [
+            "pixel_probe.py",
+            "--probe-x", "0",
+            "--probe-y", "0",
+            "--width", "1",
+            "--height", "1",
+            "--radius", "0",
+        ]
+        try:
+            with np.testing.assert_raises_regex(IndexError, "stale metric layout"):
+                pixel_probe.main()
+        finally:
+            sys.argv = original_argv
+
+
+def test_pixel_probe_clips_window_at_image_edges():
+    import doctor.tools.pixel_probe as pixel_probe
+
+    sample_stats = np.zeros(NUM_DOCTOR_METRICS, dtype=np.float64)
+    sample_stats[IDX_TERM_REASON] = 4.0
+    ray_dirs = np.zeros((3, 3, 3), dtype=np.float64)
+
+    with patch.object(pixel_probe, "generate_camera_rays", return_value=ray_dirs), \
+         patch.object(pixel_probe, "integrate_path_doctor", return_value=sample_stats) as integrate:
+        original_argv = sys.argv[:]
+        sys.argv = [
+            "pixel_probe.py",
+            "--probe-x", "0",
+            "--probe-y", "0",
+            "--width", "3",
+            "--height", "3",
+            "--radius", "1",
+        ]
+        try:
+            pixel_probe.main()
+        finally:
+            sys.argv = original_argv
+
+    assert integrate.call_count == 4

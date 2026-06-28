@@ -27,4 +27,6 @@ IDX_MAX_DE               = 25
 IDX_MAX_DL               = 26
 IDX_ORBIT_COUNT_SIGNED   = 27
 IDX_MAX_DPHI_STEP        = 28
-NUM_DOCTOR_METRICS       = 29
+IDX_MAX_ABS_DPHDLAM      = 29
+IDX_MAX_INV_SIN2         = 30
+NUM_DOCTOR_METRICS       = 31

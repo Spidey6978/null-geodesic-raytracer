@@ -1,48 +1,50 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import numpy as np
 from core.indices import *
 
 @dataclass
 class DoctorData:
     # Termination
-    captured:            bool
-    termination_reason:  int
-    steps_taken:         int
+    captured:            bool = False
+    termination_reason:  int = 0
+    steps_taken:         int = 0
 
     # Radial & Geometric
-    min_r:               float
-    max_r:               float
-    final_r:             float
-    final_theta:         float
-    min_delta:           float
+    min_r:               float = 0.0
+    max_r:               float = 0.0
+    final_r:             float = 0.0
+    final_theta:         float = 0.0
+    min_delta:           float = 0.0
 
     # Orbit Dynamics
-    orbit_count:         float
-    equatorial_crossings: int
-    theta_turning_points: int
-    min_pole_gap:        float
-    orbit_count_signed:  float
+    orbit_count:         float = 0.0
+    equatorial_crossings: int = 0
+    theta_turning_points: int = 0
+    min_pole_gap:        float = 0.0
+    orbit_count_signed:  float = 0.0
 
     # Disk
-    hit_count:           int
-    hit_radii:           list[float]   # list of floats, length = hit_count
+    hit_count:           int = 0
+    hit_radii:           list[float] = field(default_factory=list)   # list of floats, length = hit_count
 
     # Conservation Law Drift (Physics Validator)
-    E:                   float
-    L:                   float
-    Q:                   float
-    max_dH:              float
-    max_dE:              float
-    max_dL:              float
-    max_dphi_step:       float
+    E:                   float = 0.0
+    L:                   float = 0.0
+    Q:                   float = 0.0
+    max_dH:              float = 0.0
+    max_dE:              float = 0.0
+    max_dL:              float = 0.0
+    max_dphi_step:       float = 0.0
+    max_abs_dphdlam:     float = 0.0
+    max_inv_sin2:        float = 0.0
 
     # Derived Constants
-    impact_parameter:    float  # b = L/E
-    carter_constant:     float  # q = Q/E^2
+    impact_parameter:    float = 0.0  # b = L/E
+    carter_constant:     float = 0.0  # q = Q/E^2
 
     # Ergosphere
-    steps_in_ergosphere: int
-    entered_ergosphere:  bool
+    steps_in_ergosphere: int = 0
+    entered_ergosphere:  bool = False
 
 
 def collect_diagnostics(raw: np.ndarray) -> DoctorData:
@@ -78,4 +80,6 @@ def collect_diagnostics(raw: np.ndarray) -> DoctorData:
         max_dL=float(raw[IDX_MAX_DL]),
         orbit_count_signed=float(raw[IDX_ORBIT_COUNT_SIGNED]),
         max_dphi_step=float(raw[IDX_MAX_DPHI_STEP]),
+        max_abs_dphdlam=float(raw[IDX_MAX_ABS_DPHDLAM]),
+        max_inv_sin2=float(raw[IDX_MAX_INV_SIN2]),
     )
