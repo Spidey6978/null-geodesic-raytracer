@@ -173,7 +173,9 @@ def _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, a, M):
     return dr_dlam, dth_dlam, dph_dlam, dpr_dlam, dptheta_dlam, dt_dlam
 
 @njit(nopython=True, cache=True)
-def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
+def integrate_path(start_pos, start_vel, dt, max_steps,
+                   mass, spin, r_outer_horizon,
+                   disk_inner, disk_outer, sim_bounds):
     px, py, pz = start_pos[0], start_pos[1], start_pos[2]
     vx, vy, vz = start_vel[0], start_vel[1], start_vel[2]
 
@@ -183,8 +185,10 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
         vy = (vy / speed) * C
         vz = (vz / speed) * C
 
-    r, theta, phi, dot_r, dot_theta, dot_phi = _cartesian_to_bl(px, py, pz, vx, vy, vz, SPIN)
-    E, L, Q, pr, ptheta = _compute_conserved_quantities(r, theta, dot_r, dot_theta, dot_phi, SPIN, MASS)
+    r, theta, phi, dot_r, dot_theta, dot_phi = _cartesian_to_bl(
+    px, py, pz, vx, vy, vz, spin
+)
+    E, L, Q, pr, ptheta = _compute_conserved_quantities(r, theta, dot_r, dot_theta, dot_phi, spin, mass)
     t = 0.0
 
     path = np.zeros((max_steps + 1, 3), dtype=np.float64)
@@ -201,7 +205,7 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
     
     pi_2 = np.pi / 2.0
     
-    capture_radius = R_OUTER_HORIZON + 0.05
+    capture_radius = r_outer_horizon + 0.05
 
     for i in range(max_steps):
         # ── PRE-STEP CAPTURE CHECK ─────────────────────────────────────────
@@ -231,19 +235,19 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
         old_r, old_theta, old_phi = r, theta, phi
         old_pr, old_ptheta = pr, ptheta
 
-        dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, SPIN, MASS)
+        dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, spin, mass)
         
         r2 = r + dr1*dt_half; th2 = theta + dth1*dt_half; ph2 = phi + dph1*dt_half
         pr2 = pr + dpr1*dt_half; pth2 = ptheta + dpth1*dt_half
-        dr2, dth2, dph2, dpr2, dpth2, dt2 = _kerr_derivatives(r2, th2, ph2, pr2, pth2, E, L, Q, SPIN, MASS)
+        dr2, dth2, dph2, dpr2, dpth2, dt2 = _kerr_derivatives(r2, th2, ph2, pr2, pth2, E, L, Q, spin, mass)
         
         r3 = r + dr2*dt_half; th3 = theta + dth2*dt_half; ph3 = phi + dph2*dt_half
         pr3 = pr + dpr2*dt_half; pth3 = ptheta + dpth2*dt_half
-        dr3, dth3, dph3, dpr3, dpth3, dt3 = _kerr_derivatives(r3, th3, ph3, pr3, pth3, E, L, Q, SPIN, MASS)
+        dr3, dth3, dph3, dpr3, dpth3, dt3 = _kerr_derivatives(r3, th3, ph3, pr3, pth3, E, L, Q, spin, mass)
         
         r4 = r + dr3*dt_local; th4 = theta + dth3*dt_local; ph4 = phi + dph3*dt_local
         pr4 = pr + dpr3*dt_local; pth4 = ptheta + dpth3*dt_local
-        dr4, dth4, dph4, dpr4, dpth4, dt4 = _kerr_derivatives(r4, th4, ph4, pr4, pth4, E, L, Q, SPIN, MASS)
+        dr4, dth4, dph4, dpr4, dpth4, dt4 = _kerr_derivatives(r4, th4, ph4, pr4, pth4, E, L, Q, spin, mass)
 
         r      += (dt_local / 6.0) * (dr1 + 2*dr2 + 2*dr3 + dr4)
         theta  += (dt_local / 6.0) * (dth1 + 2*dth2 + 2*dth3 + dth4)
@@ -276,7 +280,7 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
                 ptheta = -ptheta
                 phi += np.pi
 
-        px, py, pz = _bl_to_cartesian_pos(r, theta, phi, SPIN)
+        px, py, pz = _bl_to_cartesian_pos(r, theta, phi, spin)
         path[steps_taken, 0] = px
         path[steps_taken, 1] = py
         path[steps_taken, 2] = pz
@@ -287,7 +291,7 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
                 t_frac = (pi_2 - old_theta) / d_theta
                 hit_r = old_r + t_frac * (r - old_r)
                 
-                if (DISK_INNER) <= hit_r <= (DISK_OUTER):
+                if (disk_inner) <= hit_r <= (disk_outer):
                     if hit_count < 4:
                         hit_phi = old_phi + t_frac * (phi - old_phi)
                         hit_radii[hit_count] = hit_r
@@ -296,8 +300,8 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
                         hit_pr = old_pr + t_frac * (pr - old_pr)
                         hit_ptheta = old_ptheta + t_frac * (ptheta - old_ptheta)
                         
-                        hdr, hdth, hdph, _, _, _ = _kerr_derivatives(hit_r, pi_2, hit_phi, hit_pr, hit_ptheta, E, L, Q, SPIN, MASS)
-                        h_vx, h_vy, h_vz = _bl_to_cartesian_vel(hit_r, pi_2, hit_phi, hdr, hdth, hdph, SPIN)
+                        hdr, hdth, hdph, _, _, _ = _kerr_derivatives(hit_r, pi_2, hit_phi, hit_pr, hit_ptheta, E, L, Q, spin, mass)
+                        h_vx, h_vy, h_vz = _bl_to_cartesian_vel(hit_r, pi_2, hit_phi, hdr, hdth, hdph, spin)
                         
                         h_spd = (h_vx*h_vx + h_vy*h_vy + h_vz*h_vz)**0.5
                         if h_spd > 0:
@@ -310,7 +314,7 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
                             hit_vels[hit_count, 2] = h_vz
                             
                         hit_count += 1
-        if not (r <= SIM_BOUNDS):
+        if not (r <= sim_bounds):
             termination_reason = 3 
             break
         
@@ -318,11 +322,16 @@ def integrate_path(start_pos, start_vel, dt=0.5, max_steps=5000):
     # it means the integrator ran to completion (natural termination).
     if termination_reason == 0:
         termination_reason = 4
+    if termination_reason == 4:
+       if r<5.0*r_outer_horizon:
+          termination_reason = 5
 
     return path, steps_taken, captured, hit_count, hit_radii, hit_phis, hit_vels, termination_reason
 
-@njit(nopython=True, cache=True)
-def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
+@njit(nopython=True, cache=True, fastmath=True)
+def integrate_path_lean(start_pos, start_vel, dt, max_steps,
+                        mass, spin, r_outer_horizon,
+                        disk_inner, disk_outer, sim_bounds):
     px, py, pz = start_pos[0], start_pos[1], start_pos[2]
     vx, vy, vz = start_vel[0], start_vel[1], start_vel[2]
 
@@ -330,9 +339,9 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
     if speed > 0:
         vx = (vx / speed) * C; vy = (vy / speed) * C; vz = (vz / speed) * C
 
-    r, theta, phi, dot_r, dot_theta, dot_phi = _cartesian_to_bl(px, py, pz, vx, vy, vz, SPIN)
-    E, L, Q, pr, ptheta = _compute_conserved_quantities(r, theta, dot_r, dot_theta, dot_phi, SPIN, MASS)
-    
+    r, theta, phi, dot_r, dot_theta, dot_phi = _cartesian_to_bl(px, py, pz, vx, vy, vz, spin)
+    E, L, Q, pr, ptheta = _compute_conserved_quantities(r, theta, dot_r, dot_theta, dot_phi, spin, mass)
+
     captured = False
     hit_count = 0
     termination_reason = 0
@@ -341,7 +350,7 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
     hit_vels = np.zeros((4, 3), dtype=np.float64)
 
     pi_2 = np.pi / 2.0
-    capture_radius = R_OUTER_HORIZON + 0.05
+    capture_radius = r_outer_horizon + 0.05
 
     for i in range(max_steps):
         # ── PRE-STEP CAPTURE CHECK ─────────────────────────────────────────
@@ -351,17 +360,18 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
             captured = True
             termination_reason = 1
             break
-        old_r, old_theta, old_phi = r, theta, phi
-        old_pr, old_ptheta = pr, ptheta
-        
+                
         dt_local = dt
         if r < 5.0:  dt_local *= 0.5
         if r < 3.0:  dt_local *= 0.25
         if r < 2.0:  dt_local *= 0.1
 
-# NEW — polar safety ladder
-# sin²θ approaches 0 near poles, making inv_sin2 blow up in dph_dlam
-# Reduce dt proportionally to keep dphi steps bounded
+        old_r, old_theta, old_phi = r, theta, phi
+        old_pr, old_ptheta = pr, ptheta
+
+        # NEW — polar safety ladder
+        # sin²θ approaches 0 near poles, making inv_sin2 blow up in dph_dlam
+        # Reduce dt proportionally to keep dphi steps bounded
         sin2_local = np.sin(theta) ** 2
         if sin2_local < 0.1:   dt_local *= 0.5
         if sin2_local < 0.01:  dt_local *= 0.25
@@ -369,19 +379,19 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
 
         dt_half = dt_local * 0.5
 
-        dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, SPIN, MASS)
+        dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, spin, mass)
         
         r2 = r + dr1*dt_half; th2 = theta + dth1*dt_half; ph2 = phi + dph1*dt_half
         pr2 = pr + dpr1*dt_half; pth2 = ptheta + dpth1*dt_half
-        dr2, dth2, dph2, dpr2, dpth2, dt2 = _kerr_derivatives(r2, th2, ph2, pr2, pth2, E, L, Q, SPIN, MASS)
+        dr2, dth2, dph2, dpr2, dpth2, dt2 = _kerr_derivatives(r2, th2, ph2, pr2, pth2, E, L, Q, spin, mass)
         
         r3 = r + dr2*dt_half; th3 = theta + dth2*dt_half; ph3 = phi + dph2*dt_half
         pr3 = pr + dpr2*dt_half; pth3 = ptheta + dpth2*dt_half
-        dr3, dth3, dph3, dpr3, dpth3, dt3 = _kerr_derivatives(r3, th3, ph3, pr3, pth3, E, L, Q, SPIN, MASS)
+        dr3, dth3, dph3, dpr3, dpth3, dt3 = _kerr_derivatives(r3, th3, ph3, pr3, pth3, E, L, Q, spin, mass)
         
         r4 = r + dr3*dt_local; th4 = theta + dth3*dt_local; ph4 = phi + dph3*dt_local
         pr4 = pr + dpr3*dt_local; pth4 = ptheta + dpth3*dt_local
-        dr4, dth4, dph4, dpr4, dpth4, dt4 = _kerr_derivatives(r4, th4, ph4, pr4, pth4, E, L, Q, SPIN, MASS)
+        dr4, dth4, dph4, dpr4, dpth4, dt4 = _kerr_derivatives(r4, th4, ph4, pr4, pth4, E, L, Q, spin, mass)
 
         r      += (dt_local / 6.0) * (dr1 + 2*dr2 + 2*dr3 + dr4)
         theta  += (dt_local / 6.0) * (dth1 + 2*dth2 + 2*dth3 + dth4)
@@ -416,7 +426,7 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
                 t_frac = (pi_2 - old_theta) / d_theta
                 hit_r = old_r + t_frac * (r - old_r)
                 
-                if (DISK_INNER) <= hit_r <= (DISK_OUTER):
+                if (disk_inner) <= hit_r <= (disk_outer):
                     if hit_count < 4:
                         hit_phi = old_phi + t_frac * (phi - old_phi)
                         hit_radii[hit_count] = hit_r
@@ -425,8 +435,8 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
                         hit_pr = old_pr + t_frac * (pr - old_pr)
                         hit_ptheta = old_ptheta + t_frac * (ptheta - old_ptheta)
                         
-                        hdr, hdth, hdph, _, _, _ = _kerr_derivatives(hit_r, pi_2, hit_phi, hit_pr, hit_ptheta, E, L, Q, SPIN, MASS)
-                        h_vx, h_vy, h_vz = _bl_to_cartesian_vel(hit_r, pi_2, hit_phi, hdr, hdth, hdph, SPIN)
+                        hdr, hdth, hdph, _, _, _ = _kerr_derivatives(hit_r, pi_2, hit_phi, hit_pr, hit_ptheta, E, L, Q, spin, mass)
+                        h_vx, h_vy, h_vz = _bl_to_cartesian_vel(hit_r, pi_2, hit_phi, hdr, hdth, hdph, spin)
                         
                         h_spd = (h_vx*h_vx + h_vy*h_vy + h_vz*h_vz)**0.5
                         if h_spd > 0:
@@ -440,16 +450,20 @@ def integrate_path_lean(start_pos, start_vel, dt=0.5, max_steps=2000):
                             
                         hit_count += 1
 
-        if not (r <= SIM_BOUNDS):
+        if not (r <= sim_bounds):
             termination_reason = 3 
             break
 
     # If we exited the loop without setting a reason, mark natural termination
     if termination_reason == 0:
         termination_reason = 4
+        
+    if termination_reason == 4:
+       if r<5.0*r_outer_horizon:
+          termination_reason = 5 
 
-    fdr, fdth, fdph, _, _, _ = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, SPIN, MASS)
-    f_vx, f_vy, f_vz = _bl_to_cartesian_vel(r, theta, phi, fdr, fdth, fdph, SPIN)
+    fdr, fdth, fdph, _, _, _ = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, spin, mass)
+    f_vx, f_vy, f_vz = _bl_to_cartesian_vel(r, theta, phi, fdr, fdth, fdph, spin)
     
     final_dir = np.empty(3, dtype=np.float64)
     final_dir[0] = f_vx; final_dir[1] = f_vy; final_dir[2] = f_vz
@@ -667,6 +681,9 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
 
     if termination_reason == 0:
         termination_reason = 4
+    if termination_reason == 4:
+       if r<5.0*r_outer_horizon:
+          termination_reason = 5
 
     # Pack Data (mapped to core.indices)
     stats[0]  = 1.0 if captured else 0.0
