@@ -229,9 +229,9 @@ def integrate_path(start_pos, start_vel, dt, max_steps,
         if r < 3.0:  dt_local *= 0.25
         if r < 2.0:  dt_local *= 0.1
 
-# NEW — polar safety ladder
-# sin²θ approaches 0 near poles, making inv_sin2 blow up in dph_dlam
-# Reduce dt proportionally to keep dphi steps bounded
+        # NEW — polar safety ladder
+        # sin²θ approaches 0 near poles, making inv_sin2 blow up in dph_dlam
+        # Reduce dt proportionally to keep dphi steps bounded
         sin2_local = np.sin(theta) ** 2
         if sin2_local < 0.1:   dt_local *= 0.5
         if sin2_local < 0.01:  dt_local *= 0.25
