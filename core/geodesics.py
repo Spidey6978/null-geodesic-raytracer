@@ -224,20 +224,21 @@ def integrate_path(start_pos, start_vel, dt, max_steps,
             break
         steps_taken += 1
         
-        dt_local = dt
-        if r < 5.0:  dt_local *= 0.5
-        if r < 3.0:  dt_local *= 0.25
-        if r < 2.0:  dt_local *= 0.1
+        # ── Smooth adaptive dt ────────────────────────────────────────────────────
+        # Two independent danger penalties compound multiplicatively:
+        #   r_factor   → reduces dt near the event horizon (Delta → 0)
+        #   theta_factor → reduces dt near the spin axis (sin²θ → 0)
+        # Combined floor of 0.01 prevents dt from going to zero.
 
-        # NEW — polar safety ladder
-        # sin²θ approaches 0 near poles, making inv_sin2 blow up in dph_dlam
-        # Reduce dt proportionally to keep dphi steps bounded
-        sin2_local = np.sin(theta) ** 2
-        if sin2_local < 0.1:   dt_local *= 0.5
-        if sin2_local < 0.01:  dt_local *= 0.25
-        if sin2_local < 0.001: dt_local *= 0.1
+        r_norm    = (r - r_outer_horizon) / (r_outer_horizon * 4.0)
+        r_factor  = r_norm if r_norm < 1.0 else 1.0
+        r_factor  = r_factor if r_factor > 0.0 else 0.0
 
-        dt_half = dt_local * 0.5
+        sin2      = np.sin(theta) ** 2
+        theta_factor = sin2 / (sin2 + 0.05)
+
+        dt_local  = dt * max(r_factor * theta_factor, 0.01)
+        dt_half   = dt_local * 0.5
         
         old_r, old_theta, old_phi = r, theta, phi
         old_pr, old_ptheta = pr, ptheta
@@ -368,23 +369,18 @@ def integrate_path_lean(start_pos, start_vel, dt, max_steps,
             termination_reason = 1
             break
                 
-        dt_local = dt
-        if r < 5.0:  dt_local *= 0.5
-        if r < 3.0:  dt_local *= 0.25
-        if r < 2.0:  dt_local *= 0.1
+        r_norm    = (r - r_outer_horizon) / (r_outer_horizon * 4.0)
+        r_factor  = r_norm if r_norm < 1.0 else 1.0
+        r_factor  = r_factor if r_factor > 0.0 else 0.0
 
+        sin2      = np.sin(theta) ** 2
+        theta_factor = sin2 / (sin2 + 0.05)
+
+        dt_local  = dt * max(r_factor * theta_factor, 0.01)
+        dt_half   = dt_local * 0.5
+        
         old_r, old_theta, old_phi = r, theta, phi
         old_pr, old_ptheta = pr, ptheta
-
-        # NEW — polar safety ladder
-        # sin²θ approaches 0 near poles, making inv_sin2 blow up in dph_dlam
-        # Reduce dt proportionally to keep dphi steps bounded
-        sin2_local = np.sin(theta) ** 2
-        if sin2_local < 0.1:   dt_local *= 0.5
-        if sin2_local < 0.01:  dt_local *= 0.25
-        if sin2_local < 0.001: dt_local *= 0.1
-
-        dt_half = dt_local * 0.5
 
         dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, spin, mass)
         
@@ -534,21 +530,15 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
         # Delta is negative and inv_Delta would be large even with softening.
         old_r, old_theta, old_phi = r, theta, phi
         
-        # Existing r-based ladder (already there)
-        dt_local = dt
-        if r < 5.0:  dt_local *= 0.5
-        if r < 3.0:  dt_local *= 0.25
-        if r < 2.0:  dt_local *= 0.1
+        r_norm    = (r - r_outer_horizon) / (r_outer_horizon * 4.0)
+        r_factor  = r_norm if r_norm < 1.0 else 1.0
+        r_factor  = r_factor if r_factor > 0.0 else 0.0
 
-# NEW — polar safety ladder
-# sin²θ approaches 0 near poles, making inv_sin2 blow up in dph_dlam
-# Reduce dt proportionally to keep dphi steps bounded
-        sin2_local = np.sin(theta) ** 2
-        if sin2_local < 0.1:   dt_local *= 0.5
-        if sin2_local < 0.01:  dt_local *= 0.25
-        if sin2_local < 0.001: dt_local *= 0.1
+        sin2      = np.sin(theta) ** 2
+        theta_factor = sin2 / (sin2 + 0.05)
 
-        dt_half = dt_local * 0.5
+        dt_local  = dt * max(r_factor * theta_factor, 0.01)
+        dt_half   = dt_local * 0.5
 
         # RK4
         dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, a, mass)

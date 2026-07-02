@@ -8,13 +8,30 @@ rays (reason 5) — these are NOT sampled from the star field.
 """
 
 import os
+import sys
+import argparse
+
+_pre = argparse.ArgumentParser(add_help=False)
+_pre.add_argument("--spin",       type=float, default=None)
+_pre.add_argument("--mass",       type=float, default=None)
+_pre.add_argument("--disk-inner", type=float, default=None)
+_pre.add_argument("--disk-outer", type=float, default=None)
+_pre_args, _ = _pre.parse_known_args()
+
+if _pre_args.spin       is not None: os.environ["BH_SPIN"]       = str(_pre_args.spin)
+if _pre_args.mass       is not None: os.environ["BH_MASS"]       = str(_pre_args.mass)
+if _pre_args.disk_inner is not None: os.environ["BH_DISK_INNER"] = str(_pre_args.disk_inner)
+if _pre_args.disk_outer is not None: os.environ["BH_DISK_OUTER"] = str(_pre_args.disk_outer)
+
 os.environ["NUMBA_NUM_THREADS"] = "12"  # set to your actual core count
 
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+from datetime import datetime
 from numba import njit, prange
 import json
+from pathlib import Path
 
 from core.camera    import generate_camera_rays
 from core.geodesics import integrate_path_lean
@@ -231,7 +248,7 @@ def render_pixel_batch(ray_dirs, cam_pos,
                        image, width, height,
                        mass, spin, r_outer_horizon,
                        disk_inner, disk_outer, sim_bounds,
-                       rs, r_isco, hit_w):
+                       rs, r_isco, hit_w, dt, max_steps):
     for idx in prange(height * width):
         y = idx // width
         x = idx  %  width
@@ -241,7 +258,7 @@ def render_pixel_batch(ray_dirs, cam_pos,
 
         final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, term_reason = \
             integrate_path_lean(
-                pos0, vel0, 0.1, 1500,
+                pos0, vel0, dt, max_steps,
                 mass, spin, r_outer_horizon,
                 disk_inner, disk_outer, sim_bounds
             )
@@ -307,23 +324,87 @@ def render_pixel_batch(ray_dirs, cam_pos,
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def render():
-    WIDTH   = 960
-    HEIGHT  = 540
-    FOV     = 100.0
-    ROLL    = -14.0
-    CAM_POS = np.array([6.5, 0.4, 18.0], dtype=np.float64)
-    LOOK_AT = [-3.0, -1.0, 0.0]
+    parser = argparse.ArgumentParser(
+        description="Production Kerr black hole renderer",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
 
-    print(f"📷  Camera {WIDTH}×{HEIGHT}  |  Rs={RS:.4f}  R_ISCO={R_ISCO:.4f}")
-    print(f"    SPIN={SPIN:.4f}  R_horizon={R_OUTER_HORIZON:.4f}")
-    print(f"    Disk [{DISK_INNER:.4f} → {DISK_OUTER:.4f}]")
+    # Physics (pre-parsed above, shown here for --help)
+    parser.add_argument("--spin",       type=float, default=SPIN,
+                        help=f"BH spin parameter (default: {SPIN})")
+    parser.add_argument("--mass",       type=float, default=MASS,
+                        help=f"BH mass (default: {MASS})")
+    parser.add_argument("--disk-inner", type=float, default=None,
+                        help="Disk inner edge override (RS multiples)")
+    parser.add_argument("--disk-outer", type=float, default=None,
+                        help="Disk outer edge override (RS multiples)")
+
+    # Integration
+    parser.add_argument("--dt",        type=float, default=0.1,
+                        help="Base step size (default: 0.1)")
+    parser.add_argument("--max-steps", type=int,   default=5000,
+                        help="Max integration steps per ray (default: 5000)")
+
+    # Camera
+    parser.add_argument("--width",  type=int,   default=960)
+    parser.add_argument("--height", type=int,   default=540)
+    parser.add_argument("--fov",    type=float, default=100.0)
+    parser.add_argument("--roll",   type=float, default=-14.0)
+    parser.add_argument("--cam-pos", nargs=3, type=float,
+                        default=[6.5, 0.4, 18.0], metavar=("X","Y","Z"))
+    parser.add_argument("--look-at", nargs=3, type=float,
+                        default=[-3.0, -1.0, 0.0], metavar=("X","Y","Z"))
+
+    # Output
+    parser.add_argument("--out",  type=str, default=None,
+                        help="Output filename (auto-generated if omitted)")
+    parser.add_argument("--show", action="store_true",
+                        help="Show image interactively after saving")
+
+    # Render mode shortcut
+    parser.add_argument("--mode", type=str, default=None,
+                        choices=["preview", "quality", "production"],
+                        help=(
+                            "Preset mode (overrides dt/max-steps/width/height):\n"
+                            "  preview    : 600x400,  dt=0.1, steps=1500  (~5s)\n"
+                            "  quality    : 960x540,  dt=0.1, steps=5000  (~30s)\n"
+                            "  production : 1920x1080, dt=0.2, steps=8000 (~4min)"
+                        ))
+
+    args = parser.parse_args()
+
+    # Apply mode presets (override individual args if mode given)
+    PRESETS = {
+        "preview":    dict(width=600,  height=400,  dt=0.1, max_steps=1500),
+        "quality":    dict(width=960,  height=540,  dt=0.1, max_steps=5000),
+        "production": dict(width=1920, height=1080, dt=0.2, max_steps=8000),
+    }
+    if args.mode:
+        p = PRESETS[args.mode]
+        args.width     = p["width"]
+        args.height    = p["height"]
+        args.dt        = p["dt"]
+        args.max_steps = p["max_steps"]
+
+    WIDTH     = args.width
+    HEIGHT    = args.height
+    DT        = args.dt
+    MAX_STEPS = args.max_steps
+    CAM_POS   = np.array(args.cam_pos, dtype=np.float64)
+    LOOK_AT   = args.look_at
+
+    print(f"📷  {WIDTH}×{HEIGHT}  dt={DT}  max_steps={MAX_STEPS}")
+    print(f"    spin={SPIN:.4f}  M={MASS:.4f}  R_horizon={R_OUTER_HORIZON:.4f}")
+    print(f"    R_ISCO={DISK_INNER:.4f}  disk_outer={DISK_OUTER:.4f}")
+    print(f"    cam={list(CAM_POS)}  look_at={LOOK_AT}")
 
     ray_dirs = generate_camera_rays(
-        WIDTH, HEIGHT, FOV, list(CAM_POS), LOOK_AT, roll_degrees=ROLL
+        WIDTH, HEIGHT, args.fov, list(CAM_POS), LOOK_AT,
+        roll_degrees=args.roll
     )
     image = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float64)
 
-    print("🔥  Warming up Numba JIT …")
+    print("🔥  Warming up JIT …")
     _d_img = np.zeros((2, 2, 3), dtype=np.float64)
     _d_ray = ray_dirs[:2, :2, :].copy()
     render_pixel_batch(
@@ -333,7 +414,8 @@ def render():
         _d_img, 2, 2,
         MASS, SPIN, R_OUTER_HORIZON,
         DISK_INNER, DISK_OUTER, SIM_BOUNDS,
-        RS, R_ISCO, _HIT_W
+        RS, DISK_INNER, _HIT_W,
+        DT, MAX_STEPS
     )
     print("✅  JIT warm. Rendering …")
 
@@ -345,7 +427,8 @@ def render():
         image, WIDTH, HEIGHT,
         MASS, SPIN, R_OUTER_HORIZON,
         DISK_INNER, DISK_OUTER, SIM_BOUNDS,
-        RS, R_ISCO, _HIT_W
+        RS, DISK_INNER, _HIT_W,
+        DT, MAX_STEPS
     )
     elapsed = time.time() - t0
     print(f"✅  Done in {elapsed:.1f}s")
@@ -353,49 +436,54 @@ def render():
     image = np.nan_to_num(image, nan=0.0, posinf=1.0, neginf=0.0)
     image = aces_tonemap(image)
 
-    from datetime import datetime
-    from pathlib import Path
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # ── Output with timestamp + serial + sidecar JSON ────────────────────────
     output_dir = Path(__file__).resolve().parent.parent / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
-    existing = list(output_dir.glob("accretion_disk_*.png"))
-    serial   = len(existing) + 1
-    filename = f"accretion_disk_{serial:04d}_a{SPIN:.3f}_{WIDTH}x{HEIGHT}_{timestamp}.png"
-    out      = str(output_dir / filename)
 
-    fig, ax = plt.subplots(figsize=(12, 6.75), facecolor='black')
-    ax.imshow(image, origin='upper')
-    ax.axis('off')
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    serial    = len(list(output_dir.glob("accretion_disk_*.png"))) + 1
+    stem      = f"accretion_disk_{serial:04d}_a{SPIN:.3f}_{WIDTH}x{HEIGHT}_{timestamp}"
+    out       = str(output_dir / f"{stem}.png") if args.out is None else args.out
+
+    meta = {
+        "serial":        serial,
+        "timestamp":     timestamp,
+        "spin":          float(SPIN),
+        "mass":          float(MASS),
+        "r_horizon":     float(R_OUTER_HORIZON),
+        "disk_inner":    float(DISK_INNER),
+        "disk_outer":    float(DISK_OUTER),
+        "cam_pos":       list(CAM_POS),
+        "look_at":       LOOK_AT,
+        "fov":           args.fov,
+        "roll":          args.roll,
+        "width":         WIDTH,
+        "height":        HEIGHT,
+        "dt":            DT,
+        "max_steps":     MAX_STEPS,
+        "mode":          args.mode,
+        "render_time_s": elapsed,
+        "cli":           " ".join(sys.argv),
+    }
+    with open(out.replace(".png", ".json"), "w") as f:
+        json.dump(meta, f, indent=2)
+
+    fig, ax = plt.subplots(figsize=(WIDTH/80, HEIGHT/80), facecolor="black")
+    ax.imshow(image, origin="upper")
+    ax.axis("off")
     ax.set_title(
         f"Relativistic Accretion Disk (Parallel Multi-Hit Engine)\n"
-        f"{WIDTH}×{HEIGHT} px | {elapsed:.1f}s render time",
-        color='white', fontsize=11, pad=10
+        f"{WIDTH}×{HEIGHT} | {elapsed:.1f}s | a={SPIN:.3f} | "
+        f"dt={DT} | steps={MAX_STEPS}",
+        color="white", fontsize=10, pad=8
     )
     plt.tight_layout()
-    plt.savefig(out, bbox_inches='tight', dpi=200, facecolor='black')
+    plt.savefig(out, bbox_inches="tight", dpi=150, facecolor="black")
     print(f"💾  Saved → {out}")
-    plt.show()
-    
-    meta = {
-    "serial":     serial,
-    "timestamp":  timestamp,
-    "spin":       float(SPIN),
-    "mass":       float(MASS),
-    "disk_inner": float(R_ISCO),
-    "disk_outer": float(DISK_OUTER),
-    "cam_pos":    list(CAM_POS),
-    "look_at":    LOOK_AT,
-    "fov":        FOV,
-    "dt":         0.1,        # whatever you're using
-    "max_steps":  1500,
-    "width":      WIDTH,
-    "height":     HEIGHT,
-    "render_time_s": elapsed,
-}
-    meta_path = out.replace(".png", ".json")
-    with open(meta_path, "w") as f:
-        json.dump(meta, f, indent=2)
-    print(f"📋  Metadata → {meta_path}")
+    print(f"📋  Metadata → {out.replace('.png', '.json')}")
+
+    if args.show:
+        plt.show()
 
 
 if __name__ == "__main__":
