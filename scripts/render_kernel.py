@@ -37,6 +37,7 @@ from core.camera    import generate_camera_rays
 from core.geodesics import integrate_path_lean
 from core.constants import (MASS, SPIN, R_OUTER_HORIZON,
                              DISK_INNER, DISK_OUTER, SIM_BOUNDS, RS, C)
+from scripts.cam_presets import CAMERA_PRESETS
 
 # ── Derived constants (Python level — fed as runtime args to Numba) ───────────
 M      = MASS
@@ -338,6 +339,9 @@ def render():
                         help="Disk inner edge override (RS multiples)")
     parser.add_argument("--disk-outer", type=float, default=None,
                         help="Disk outer edge override (RS multiples)")
+    parser.add_argument("--preset", type=str, default=None,
+                    choices=list(CAMERA_PRESETS.keys()),
+                    help="Named camera preset (overrides --cam-pos, --look-at, --fov)")
 
     # Integration
     parser.add_argument("--dt",        type=float, default=0.1,
@@ -372,6 +376,15 @@ def render():
                         ))
 
     args = parser.parse_args()
+    
+    if args.preset:
+        p = CAMERA_PRESETS[args.preset]
+        args.cam_pos = p["cam_pos"]
+        args.look_at = p["look_at"]
+        args.fov     = p["fov"]
+        if "roll" in p:
+            args.roll = p["roll"]
+        print(f"📍  Preset '{args.preset}': {p['note']}")
 
     # Apply mode presets (override individual args if mode given)
     PRESETS = {
@@ -441,8 +454,8 @@ def render():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    serial    = len(list(output_dir.glob("accretion_disk_*.png"))) + 1
-    stem      = f"accretion_disk_{serial:04d}_a{SPIN:.3f}_{WIDTH}x{HEIGHT}_{timestamp}"
+    serial    = len(list(output_dir.glob("production_render_*"))) + 1
+    stem      = f"production_render_{serial:04d}_a{SPIN:.3f}_{WIDTH}x{HEIGHT}_{timestamp}"
     out       = str(output_dir / f"{stem}.png") if args.out is None else args.out
 
     meta = {
