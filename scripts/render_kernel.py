@@ -403,6 +403,7 @@ def render():
     HEIGHT    = args.height
     DT        = args.dt
     MAX_STEPS = args.max_steps
+    CAMERA_NAME = args.preset or "custom_camera"
     CAM_POS   = np.array(args.cam_pos, dtype=np.float64)
     LOOK_AT   = args.look_at
 
@@ -455,7 +456,7 @@ def render():
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     serial    = len(list(output_dir.glob("production_render_*"))) + 1
-    stem      = f"production_render_{serial:04d}_a{SPIN:.3f}_{WIDTH}x{HEIGHT}_{timestamp}"
+    stem      = f"production_render_{CAMERA_NAME}_{serial:04d}_a{SPIN:.3f}_{WIDTH}x{HEIGHT}_{timestamp}"
     out       = str(output_dir / f"{stem}.png") if args.out is None else args.out
 
     meta = {
@@ -475,6 +476,7 @@ def render():
         "dt":            DT,
         "max_steps":     MAX_STEPS,
         "mode":          args.mode,
+        "camera_preset": args.preset,
         "render_time_s": elapsed,
         "cli":           " ".join(sys.argv),
     }
@@ -485,7 +487,7 @@ def render():
     ax.imshow(image, origin="upper")
     ax.axis("off")
     ax.set_title(
-        f"Relativistic Accretion Disk (Parallel Multi-Hit Engine)\n"
+        f"Relativistic Accretion Disk — Camera: {CAMERA_NAME}\n"
         f"{WIDTH}×{HEIGHT} | {elapsed:.1f}s | a={SPIN:.3f} | "
         f"dt={DT} | steps={MAX_STEPS}",
         color="white", fontsize=10, pad=8
