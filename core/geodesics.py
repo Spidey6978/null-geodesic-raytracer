@@ -205,7 +205,14 @@ def integrate_path(start_pos, start_vel, dt, max_steps,
     
     pi_2 = np.pi / 2.0
     
-    capture_radius = r_outer_horizon + 0.05
+    # Capture radius: 5% outside the event horizon.
+    # Boyer-Lindquist coordinates become numerically degenerate as Delta->0
+    # at the horizon. Since no photon at r < r_horizon can physically escape,
+    # stopping integration here hides no observable physics — only the
+    # unobservable final infall. The buffer prevents inv_Delta from spiking
+    # into the capped softening regime, keeping dpr/dphi derivatives clean.
+    # KS coordinates would eliminate the need for this buffer entirely.
+    capture_radius = r_outer_horizon * 1.05
 
     for i in range(max_steps):
         # ── PRE-STEP CAPTURE CHECK ─────────────────────────────────────────
@@ -350,7 +357,7 @@ def integrate_path_lean(start_pos, start_vel, dt, max_steps,
     hit_vels = np.zeros((4, 3), dtype=np.float64)
 
     pi_2 = np.pi / 2.0
-    capture_radius = r_outer_horizon + 0.05
+    capture_radius = r_outer_horizon * 1.05
 
     for i in range(max_steps):
         # ── PRE-STEP CAPTURE CHECK ─────────────────────────────────────────
@@ -519,7 +526,7 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
     hit_count = 0
 
     pi_2 = np.pi / 2.0
-    capture_radius = r_outer_horizon + 0.002
+    capture_radius = r_outer_horizon * 1.05
 
     for i in range(max_steps):
         # ── PRE-STEP CAPTURE CHECK ─────────────────────────────────────────
