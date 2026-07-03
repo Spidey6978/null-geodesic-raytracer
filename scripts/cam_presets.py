@@ -157,11 +157,11 @@ CAMERA_PRESETS = {
                 "Compare shadow shape to EHT 2019 image qualitatively."
     },
     "critical_curve": {
-    "cam_pos": [0.0, 0.2, 25.0],
-    "look_at": [0.0, 0.0, 0.0],
-    "fov": 6,
-    "note": "Extreme zoom on the critical curve. Shadow edge should be ~1.5M "
-            "in radius. Run at high resolution to resolve the photon ring."
+        # Extreme zoom on the critical curve. Shadow edge should be ~1.5M in radius.
+        # Run at high resolution to resolve the photon ring.
+        "cam_pos": [0.0, 0.2, 25.0], "look_at": [0.0, 0.0, 0.0], "fov": 6,
+        "note": "Extreme zoom on the critical curve. Shadow edge should be ~1.5M "
+                "in radius. Run at high resolution to resolve the photon ring."
     },
     "extreme_close": {
         # As close as you can get without the shadow eating the whole frame.
