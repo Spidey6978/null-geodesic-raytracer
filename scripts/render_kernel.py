@@ -372,10 +372,14 @@ def render():
                             "Preset mode (overrides dt/max-steps/width/height):\n"
                             "  preview    : 600x400,  dt=0.1, steps=1500  (~5s)\n"
                             "  quality    : 960x540,  dt=0.1, steps=5000  (~30s)\n"
-                            "  production : 1920x1080, dt=0.2, steps=8000 (~4min)"
+                            "  production : 1920x1080, dt=0.1, steps=8000 (~4min)"
                         ))
 
     args = parser.parse_args()
+    
+    fov_scale=args.fov / 70.0
+    star_radii_scaled = (_STAR_RADII * fov_scale).astype(np.float64)
+    star_cos_radii_scaled = np.cos(star_radii_scaled).astype(np.float64)
     
     if args.preset:
         p = CAMERA_PRESETS[args.preset]
@@ -390,7 +394,7 @@ def render():
     PRESETS = {
         "preview":    dict(width=600,  height=400,  dt=0.1, max_steps=1500),
         "quality":    dict(width=960,  height=540,  dt=0.1, max_steps=5000),
-        "production": dict(width=1920, height=1080, dt=0.2, max_steps=8000),
+        "production": dict(width=1920, height=1080, dt=0.1, max_steps=8000),
     }
     if args.mode:
         p = PRESETS[args.mode]
@@ -423,7 +427,7 @@ def render():
     _d_ray = ray_dirs[:2, :2, :].copy()
     render_pixel_batch(
         _d_ray, CAM_POS,
-        _STAR_DIRS, _STAR_BRIGHT, _STAR_COS_RADII, _STAR_COLOUR, _STAR_PAL,
+        _STAR_DIRS, _STAR_BRIGHT, star_cos_radii_scaled, _STAR_COLOUR, _STAR_PAL,
         _PT, _PR, _PG, _PB,
         _d_img, 2, 2,
         MASS, SPIN, R_OUTER_HORIZON,
@@ -436,7 +440,7 @@ def render():
     t0 = time.time()
     render_pixel_batch(
         ray_dirs, CAM_POS,
-        _STAR_DIRS, _STAR_BRIGHT, _STAR_COS_RADII, _STAR_COLOUR, _STAR_PAL,
+        _STAR_DIRS, _STAR_BRIGHT, star_cos_radii_scaled, _STAR_COLOUR, _STAR_PAL,
         _PT, _PR, _PG, _PB,
         image, WIDTH, HEIGHT,
         MASS, SPIN, R_OUTER_HORIZON,
