@@ -336,9 +336,9 @@ def render():
     parser.add_argument("--mass",       type=float, default=MASS,
                         help=f"BH mass (default: {MASS})")
     parser.add_argument("--disk-inner", type=float, default=None,
-                        help="Disk inner edge override (RS multiples)")
+                        help="Disk inner edge in units of RS (e.g. 3.0 = 3xRS = 6.0 geom units)")
     parser.add_argument("--disk-outer", type=float, default=None,
-                        help="Disk outer edge override (RS multiples)")
+                        help="Disk outer edge in units of RS (e.g. 10.0 = 10xRS = 20.0 geom units)")
     parser.add_argument("--preset", type=str, default=None,
                     choices=list(CAMERA_PRESETS.keys()),
                     help="Named camera preset (overrides --cam-pos, --look-at, --fov)")
