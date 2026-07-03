@@ -353,7 +353,7 @@ def render():
     parser.add_argument("--width",  type=int,   default=960)
     parser.add_argument("--height", type=int,   default=540)
     parser.add_argument("--fov",    type=float, default=100.0)
-    parser.add_argument("--roll",   type=float, default=-14.0)
+    parser.add_argument("--roll",   type=float, default=0.0)
     parser.add_argument("--cam-pos", nargs=3, type=float,
                         default=[6.5, 0.4, 18.0], metavar=("X","Y","Z"))
     parser.add_argument("--look-at", nargs=3, type=float,
