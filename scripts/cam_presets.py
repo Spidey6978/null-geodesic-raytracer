@@ -38,6 +38,12 @@ CAMERA_PRESETS = {
         "cam_pos": [2.5, 1.0, 6.0], "look_at": [0.0, 0.0, 0.0], "fov": 110,
         "note": "Ultra-wide close-up. Aggressive lensing. Bug revealer."
     },
+    "disk_texture": {
+    "cam_pos": [0.0, 12.0, 6.0], "look_at": [0.0, 0.0, 0.0], "fov": 55,
+    "note": "High inclination close-up. Disk fills most of frame. "
+            "Best preset to evaluate spiral arm structure and density "
+            "variation after the disk_density port."
+},
 
     # ── NEW: SHADOW GEOMETRY ───────────────────────────────────────────────
 
@@ -83,6 +89,11 @@ CAMERA_PRESETS = {
         "cam_pos": [-8.0, 0.3, 10.0], "look_at": [0.0, 0.0, 0.0], "fov": 55,
         "note": "Retrograde hemisphere prominent. Disk should look dimmer and redder "
                 "than prograde shots. Good Doppler asymmetry comparison."
+    },
+    "gravitational_lens": {
+        "cam_pos": [0.0, 0.1, 30.0], "look_at": [0.0, 0.0, 0.0], "fov": 8,
+        "note": "Very distant, very tight. BH acts as pure gravitational lens. "
+            "Multiple images of background stars visible around shadow edge."
     },
 
     # ── NEW: CINEMATIC / FLYBY ─────────────────────────────────────────────
@@ -171,4 +182,16 @@ CAMERA_PRESETS = {
                 "Maximum lensing distortion. Very expensive — most pixels "
                 "trace near-critical geodesics."
     },
+    "penrose_zone": {
+    "cam_pos": [0.0, 0.5, 6.0], "look_at": [0.0, 0.0, 0.0], "fov": 35,
+    "note": "Tight framing on the ergosphere region at a=0.998. "
+            "The asymmetric brightness between prograde and retrograde "
+            "orbits is most visible at this distance and FOV."
+},
+    "photon_ring": {
+    "cam_pos": [0.0, 0.1, 20.0], "look_at": [0.0, 0.0, 0.0], "fov": 12,
+    "note": "Near-equatorial, tight FOV centered on shadow boundary. "
+            "At 1920x1080 the secondary photon ring should be resolvable "
+            "as a distinct bright arc just outside the shadow."
+},
 }
