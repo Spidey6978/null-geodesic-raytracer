@@ -109,6 +109,53 @@ def _novikov_thorne(r, r_isco):
     raw   = (nt / 0.38) * decay
     return raw if raw < 1.0 else 1.0
 
+@njit(cache=True)
+def _keplerian_omega(r, mass, r_isco):
+    r_s = r if r > r_isco else r_isco
+    return (mass / (r_s ** 3)) ** 0.5
+
+
+@njit(cache=True)
+def _disk_density(r, phi, time_val, mass, r_isco, disk_inner, disk_outer, rs):
+    omega    = _keplerian_omega(r, mass, r_isco)
+    phi_rest = phi - omega * time_val
+
+    r_norm = (r - disk_inner) / (disk_outer - disk_inner)
+    r_norm = r_norm if r_norm > 0.0 else 0.0
+    r_norm = r_norm if r_norm < 1.0 else 1.0
+
+    # Domain warp — breaks perfect periodicity, makes arms look organic
+    warp_phi = phi_rest + 0.18 * np.sin(2.0 * phi_rest + 1.4 * r_norm)
+    warp_r   = r_norm  + 0.08 * np.cos(3.0 * phi_rest - 0.9 * r_norm)
+
+    # Two trailing spiral arms (N=2 symmetry)
+    k_pitch = 0.30
+    arm_phi = warp_phi - k_pitch * warp_r * 6.283
+    arm_base = (np.cos(2.0 * arm_phi) + 1.0) * 0.5
+
+    # Arm shaping — broad, not thin filaments
+    threshold = 0.35
+    shaped = (arm_base - threshold) / (1.0 - threshold)
+    shaped = shaped if shaped > 0.0 else 0.0
+    shaped = shaped ** 0.7
+
+    # Radial and azimuthal modulation
+    radial_profile = (1.0 - r_norm) ** 1.4 + 0.15
+    az_mod = 0.75 + 0.25 * np.sin(phi_rest + 0.5)
+
+    # Edge feathering
+    fade_in  = (r - disk_inner) / (rs * 1.2)
+    fade_in  = fade_in if fade_in < 1.0 else 1.0
+    fade_in  = fade_in if fade_in > 0.0 else 0.0
+    fade_out = (disk_outer - r) / (rs * 2.5)
+    fade_out = fade_out if fade_out < 1.0 else 1.0
+    fade_out = fade_out if fade_out > 0.0 else 0.0
+    edge     = fade_in * fade_out
+
+    density = shaped * radial_profile * az_mod * edge
+    floor   = 0.12 * radial_profile * edge
+    return density + floor
+
 
 @njit(cache=True)
 def _blackbody_rgb(T_eff, out, PT, PR, PG, PB):
@@ -132,10 +179,13 @@ def _blackbody_rgb(T_eff, out, PT, PR, PG, PB):
 
 @njit(cache=True)
 def _disk_colour(hit_radius, hit_phi, hv0, hv1, hv2, weight,
-                 mass, r_isco, rs, out, PT, PR, PG, PB):
+                 mass, r_isco, rs, disk_inner, disk_outer, time_val,
+                 out, PT, PR, PG, PB):
     T_base  = _novikov_thorne(hit_radius, r_isco)
     delta   = _doppler_factor(hit_radius, hit_phi, hv0, hv1, hv2, mass, r_isco)
     g_shift = _grav_redshift(hit_radius, r_isco, rs)
+    density = _disk_density(hit_radius, hit_phi, time_val,
+                            mass, r_isco, disk_inner, disk_outer, rs)
 
     T_eff = T_base * delta * g_shift
     if T_eff > 1.0: T_eff = 1.0
@@ -144,7 +194,7 @@ def _disk_colour(hit_radius, hit_phi, hv0, hv1, hv2, weight,
     combined = (delta * g_shift) ** 4
     if combined > 16.0: combined = 16.0
 
-    intensity = T_base * (combined ** 0.5) * 0.65 * weight
+    intensity = T_base * (combined ** 0.5) * density * 1.4 * weight
 
     _blackbody_rgb(T_eff, out, PT, PR, PG, PB)
     cap = 2.0
@@ -249,7 +299,7 @@ def render_pixel_batch(ray_dirs, cam_pos,
                        image, width, height,
                        mass, spin, r_outer_horizon,
                        disk_inner, disk_outer, sim_bounds,
-                       rs, r_isco, hit_w, dt, max_steps):
+                       rs, r_isco, hit_w, dt, max_steps, time_val):
     for idx in prange(height * width):
         y = idx // width
         x = idx  %  width
@@ -275,7 +325,8 @@ def render_pixel_batch(ray_dirs, cam_pos,
                 hv = hit_vels[k]
                 _disk_colour(hit_radii[k], hit_phis[k],
                              hv[0], hv[1], hv[2], w,
-                             mass, r_isco, rs, tmp, PT, PR, PG, PB)
+                             mass, r_isco, rs, disk_inner, disk_outer, time_val,
+                             tmp, PT, PR, PG, PB)
                 cap = 3.0
                 pixel[0] += tmp[0] if tmp[0] < cap else cap
                 pixel[1] += tmp[1] if tmp[1] < cap else cap
@@ -301,7 +352,8 @@ def render_pixel_batch(ray_dirs, cam_pos,
                 hv = hit_vels[k]
                 _disk_colour(hit_radii[k], hit_phis[k],
                              hv[0], hv[1], hv[2], w,
-                             mass, r_isco, rs, tmp, PT, PR, PG, PB)
+                             mass, r_isco, rs, disk_inner, disk_outer, time_val,
+                             tmp, PT, PR, PG, PB)
                 cap = 3.0
                 pixel[0] += tmp[0] if tmp[0] < cap else cap
                 pixel[1] += tmp[1] if tmp[1] < cap else cap
