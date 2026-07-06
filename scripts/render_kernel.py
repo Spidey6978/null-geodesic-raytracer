@@ -485,7 +485,7 @@ def render():
         MASS, SPIN, R_OUTER_HORIZON,
         DISK_INNER, DISK_OUTER, SIM_BOUNDS,
         RS, DISK_INNER, _HIT_W,
-        DT, MAX_STEPS
+        DT, MAX_STEPS, 0.0
     )
     print("✅  JIT warm. Rendering …")
 
@@ -498,7 +498,7 @@ def render():
         MASS, SPIN, R_OUTER_HORIZON,
         DISK_INNER, DISK_OUTER, SIM_BOUNDS,
         RS, DISK_INNER, _HIT_W,
-        DT, MAX_STEPS
+        DT, MAX_STEPS, 0.0
     )
     elapsed = time.time() - t0
     print(f"✅  Done in {elapsed:.1f}s")
