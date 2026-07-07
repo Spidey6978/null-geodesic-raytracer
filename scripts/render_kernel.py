@@ -28,12 +28,28 @@ _pre.add_argument("--disk-inner", type=float, default=None)
 _pre.add_argument("--disk-outer", type=float, default=None)
 _pre_args, _ = _pre.parse_known_args()
 
+_mass_for_validation = _pre_args.mass if _pre_args.mass is not None else float(os.environ.get("BH_MASS", "1.0"))
+_spin_for_validation = _pre_args.spin if _pre_args.spin is not None else float(os.environ.get("BH_SPIN", "0.998"))
+if _mass_for_validation <= 0.0:
+    _pre.error("--mass must be positive")
+if abs(_spin_for_validation) > 1.0:
+    _pre.error("--spin must be in the dimensionless range [-1, 1]")
+if _pre_args.disk_inner is not None and _pre_args.disk_inner <= 0.0:
+    _pre.error("--disk-inner must be positive")
+if _pre_args.disk_outer is not None and _pre_args.disk_outer <= 0.0:
+    _pre.error("--disk-outer must be positive")
+if (
+    _pre_args.disk_inner is not None and _pre_args.disk_outer is not None
+    and _pre_args.disk_outer <= _pre_args.disk_inner
+):
+    _pre.error("--disk-outer must be greater than --disk-inner")
+
 if _pre_args.spin       is not None: os.environ["BH_SPIN"]       = str(_pre_args.spin)
 if _pre_args.mass       is not None: os.environ["BH_MASS"]       = str(_pre_args.mass)
 if _pre_args.disk_inner is not None: os.environ["BH_DISK_INNER"] = str(_pre_args.disk_inner)
 if _pre_args.disk_outer is not None: os.environ["BH_DISK_OUTER"] = str(_pre_args.disk_outer)
 
-os.environ["NUMBA_NUM_THREADS"] = "12"  # set to your actual core count
+os.environ.setdefault("NUMBA_NUM_THREADS", str(max(1, min(os.cpu_count() or 1, 12))))
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -671,23 +687,21 @@ def render():
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
 
-    fig, ax = plt.subplots(figsize=(WIDTH/80, HEIGHT/80), facecolor="black")
-    ax.imshow(image, origin="upper")
-    ax.axis("off")
-    ax.set_title(
-        f"Relativistic Accretion Disk — Camera: {CAMERA_NAME}\n"
-        f"{WIDTH}×{HEIGHT} | {elapsed:.1f}s | a={SPIN:.3f} | "
-        f"dt={DT} | steps={MAX_STEPS}",
-        color="white", fontsize=10, pad=8
-    )
-    plt.tight_layout()
     save_with_metadata(image, out, meta)
     print(f"📋  Metadata → {meta_path}")
 
     if args.show:
+        fig, ax = plt.subplots(figsize=(WIDTH/80, HEIGHT/80), facecolor="black")
+        ax.imshow(image, origin="upper")
+        ax.axis("off")
+        ax.set_title(
+            f"Relativistic Accretion Disk — Camera: {CAMERA_NAME}\n"
+            f"{WIDTH}×{HEIGHT} | {elapsed:.1f}s | a={SPIN:.3f} | "
+            f"dt={DT} | steps={MAX_STEPS}",
+            color="white", fontsize=10, pad=8
+        )
+        plt.tight_layout()
         plt.show()
-    else:
-        plt.close(fig)
 
 def save_with_metadata(final: np.ndarray, out: str, meta: dict) -> None:
     """
@@ -717,8 +731,8 @@ def save_with_metadata(final: np.ndarray, out: str, meta: dict) -> None:
         print(f"Saved (with embedded metadata) -> {out}")
 
     except ImportError:
-        # Pillow not available — fall back to matplotlib
-        plt.savefig(out, bbox_inches="tight", dpi=150, facecolor="black")
+        # Pillow not available — fall back to a plain RGB PNG without metadata.
+        plt.imsave(out, np.clip(final, 0, 1))
         print(f"Saved -> {out}  (install Pillow for embedded metadata)")
 
 if __name__ == "__main__":

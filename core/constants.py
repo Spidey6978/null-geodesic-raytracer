@@ -14,6 +14,10 @@ C = 1.0
 
 MASS = float(os.environ.get("BH_MASS", "1.0"))
 _raw_spin = float(os.environ.get("BH_SPIN", "0.998"))
+if MASS <= 0.0:
+    raise ValueError("BH_MASS must be positive")
+if abs(_raw_spin) > 1.0:
+    raise ValueError("BH_SPIN must be in the dimensionless range [-1, 1]")
 SPIN = _raw_spin * MASS
 
 RS = 2.0 * G * MASS / (C**2)

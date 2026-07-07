@@ -14,6 +14,12 @@ import sys
 import argparse as _ap
 import importlib
 import time
+from pathlib import Path
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(errors="replace")
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -165,6 +171,23 @@ def main():
 
     args = parser.parse_args()
 
+    if args.width <= 0 or args.height <= 0:
+        parser.error("--width and --height must be positive")
+    if args.mass <= 0.0:
+        parser.error("--mass must be positive")
+    if abs(args.spin) > 1.0:
+        parser.error("--spin must be in the dimensionless range [-1, 1]")
+    if (
+        args.disk_inner is not None and args.disk_inner <= 0.0
+        or args.disk_outer is not None and args.disk_outer <= 0.0
+    ):
+        parser.error("--disk-inner and --disk-outer must be positive when provided")
+    if (
+        args.disk_inner is not None and args.disk_outer is not None
+        and args.disk_outer <= args.disk_inner
+    ):
+        parser.error("--disk-outer must be greater than --disk-inner")
+
     # ── List modes and exit ───────────────────────────────────────────────────
     if args.modes:
         print("\nAvailable diagnostic modes:")
@@ -207,7 +230,8 @@ def main():
         args.width, args.height,
         args.fov, CAM_POS, LOOK_AT,
         dt=args.dt, max_steps=args.max_steps,
-        roll=args.roll, spin=args.spin, mass=args.mass
+        roll=args.roll, spin=args.spin, mass=args.mass,
+        disk_inner=args.disk_inner, disk_outer=args.disk_outer
     )
     t1 = time.time()
     print(f"✅  Tensor computed in {t1-t0:.1f}s")
@@ -238,6 +262,7 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     default_name = f"{args.mode}_a{args.spin:.3f}_{timestamp}.png"
     outfile = args.out or os.path.join(outdir, default_name)
+    Path(outfile).parent.mkdir(parents=True, exist_ok=True)
 
     fig, ax = plt.subplots(figsize=(12, 6.75), facecolor="black")
     ax.imshow(img, origin="upper", aspect="auto")
@@ -254,6 +279,8 @@ def main():
 
     if args.show:
         plt.show()
+    else:
+        plt.close(fig)
         
     meta = {
         "mode":       args.mode,
@@ -265,14 +292,16 @@ def main():
         "fov":        args.fov,
         "dt":         args.dt,
         "max_steps":  args.max_steps,
+        "disk_inner": args.disk_inner,
+        "disk_outer": args.disk_outer,
         "vmin":       config.get("vmin"),
         "vmax":       config.get("vmax"),
         "cli":        " ".join(sys.argv),   # full command that produced this
         "compute_time_s": t1 - t0,
     }
     
-    meta_path = outfile.replace(".png", ".json")
-    with open(meta_path, "w") as f:
+    meta_path = str(Path(outfile).with_suffix(".json"))
+    with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
     print(f"📋  Metadata → {meta_path}")
 

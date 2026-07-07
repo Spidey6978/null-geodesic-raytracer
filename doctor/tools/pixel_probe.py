@@ -59,6 +59,10 @@ def main():
 
     if args.width <= 0 or args.height <= 0:
         p.error("--width and --height must be positive")
+    if args.mass <= 0.0:
+        p.error("--mass must be positive")
+    if abs(args.spin) > 1.0:
+        p.error("--spin must be in the dimensionless range [-1, 1]")
     if args.radius < 0:
         p.error("--radius must be non-negative")
     if not (0 <= args.probe_x < args.width and 0 <= args.probe_y < args.height):
@@ -206,6 +210,8 @@ def _probe_horizon_ratios(cam_pos, ray_dir, dt, max_steps, mass, a,
     px, py, pz = cam_pos
     vx, vy, vz = ray_dir
     speed = (vx**2 + vy**2 + vz**2)**0.5
+    if speed <= 1e-12:
+        return 0.0, 0.0
     if speed > 0:
         vx /= speed; vy /= speed; vz /= speed
 

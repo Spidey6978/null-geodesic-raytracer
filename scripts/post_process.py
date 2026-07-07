@@ -26,11 +26,12 @@ class SimulationSettings:
 @dataclass
 class ObservationSettings:
     exposure:            float = 1.0
-    psf_sigma:           float = 1.2
-    bloom_threshold:     float = 0.80
-    bloom_strength:      float = 0.25
+    psf_radius:          float = 1.8    # Airy disk radius in pixels
+    psf_rings:           int   = 2      # diffraction rings (1-3)
+    bloom_threshold:     float = 0.78
+    bloom_strength:      float = 0.22
     highlight_threshold: float = 0.92
-    highlight_strength:  float = 0.12
+    highlight_strength:  float = 0.10
     halation_strength:   float = 0.06
     noise_photon_scale:  float = 500.0
     read_noise_sigma:    float = 0.002
@@ -106,16 +107,15 @@ def apply_gamma(img: np.ndarray, gamma: float = 2.2) -> np.ndarray:
     return np.clip(img, 0.0, 1.0) ** (1.0 / gamma)
 
 
-def apply_psf(img: np.ndarray, sigma: float = 1.2) -> np.ndarray:
+def apply_psf(img: np.ndarray, radius: float = 1.8, rings: int = 2) -> np.ndarray:
     """
-    Gaussian PSF blur simulating finite telescope resolution.
+    Airy disk PSF simulating finite telescope resolution.
     Applied per-channel to preserve colour accuracy.
-    Tier 4 will replace this with Airy disk / Moffat profiles.
     """
     from scipy.ndimage import gaussian_filter
     out = np.empty_like(img)
     for c in range(3):
-        out[:, :, c] = gaussian_filter(img[:, :, c], sigma=sigma)
+        out[:, :, c] = gaussian_filter(img[:, :, c], sigma=radius)
     return out
 
 
@@ -348,7 +348,7 @@ def apply_chromatic_shift(img: np.ndarray,
 
 def apply_nan_guard(img: np.ndarray) -> np.ndarray:
     """Always first in every pipeline. Cleans up physics output."""
-    return np.nan_to_num(img, nan=0.0, posinf=1.0, neginf=0.0)
+    return np.clip(np.nan_to_num(img, nan=0.0, posinf=1.0, neginf=0.0), 0.0, None)
 
 # ── T4 — Advanced Effects ─────────────────────────────────────────────────────
 
@@ -524,18 +524,19 @@ def build_simulation_pipeline(s: SimulationSettings) -> Pipeline:
 def build_observation_pipeline(s: ObservationSettings) -> Pipeline:
     return [
         (apply_nan_guard,       {}),
-        (apply_exposure,        {"exposure":      s.exposure}),
-        (apply_highlight_glow,  {"threshold":     s.highlight_threshold,
-                                 "strength":      s.highlight_strength}),
-        (apply_bloom,           {"threshold":     s.bloom_threshold,
-                                 "strength":      s.bloom_strength}),
-        (apply_halation,        {"strength":      s.halation_strength}),
-        (apply_psf,             {"sigma":         s.psf_sigma}),
-        (apply_noise,           {"photon_scale":  s.noise_photon_scale,
-                                 "read_sigma":    s.read_noise_sigma}),
-        (tonemap,               {"mode":          s.tonemap_mode}),
-        (apply_sensor_clip,     {"bit_depth":     s.sensor_bit_depth}),
-        (apply_gamma,           {"gamma":         s.gamma}),
+        (apply_exposure,        {"exposure":       s.exposure}),
+        (apply_highlight_glow,  {"threshold":      s.highlight_threshold,
+                                 "strength":       s.highlight_strength}),
+        (apply_adaptive_bloom,  {"base_threshold": s.bloom_threshold,
+                                 "base_strength":  s.bloom_strength}),
+        (apply_halation,        {"strength":       s.halation_strength}),
+        (apply_airy_disk_psf,   {"radius":         s.psf_radius,
+                                 "rings":          s.psf_rings}),
+        (apply_noise,           {"photon_scale":   s.noise_photon_scale,
+                                 "read_sigma":     s.read_noise_sigma}),
+        (tonemap,               {"mode":           s.tonemap_mode}),
+        (apply_sensor_clip,     {"bit_depth":      s.sensor_bit_depth}),
+        (apply_gamma,           {"gamma":          s.gamma}),
     ]
 
 

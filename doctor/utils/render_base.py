@@ -22,25 +22,37 @@ def _generate_diagnostic_tensor(width, height, cam_pos, ray_dirs, dt, max_steps,
             tensor[y, x, k] = stats[k]
     return tensor
 
-def compute_tensor(width, height, fov, cam_pos, look_at, dt=0.25, max_steps=1500, roll=0.0, spin=0.0, mass=1.0):
+def compute_tensor(width, height, fov, cam_pos, look_at, dt=0.25, max_steps=1500,
+                   roll=0.0, spin=0.0, mass=1.0, disk_inner=None, disk_outer=None):
     # ── DYNAMIC PHYSICS BOUNDARIES ──
+    if mass <= 0.0:
+        raise ValueError("mass must be positive")
+    if abs(spin) > 1.0:
+        raise ValueError("spin must be in the dimensionless range [-1, 1]")
+
     a = spin * mass
+    rs = 2.0 * mass
     
     # 1. Event Horizon
     sqrt_term = (mass**2 - a**2)**0.5 if mass**2 >= a**2 else 0.0
     r_outer_horizon = mass + sqrt_term
     
     # 2. ISCO (Innermost Stable Circular Orbit)
-    if abs(a) < 1e-10:
-        disk_inner = 6.0 * mass
+    if disk_inner is None:
+        if abs(a) < 1e-10:
+            disk_inner = 6.0 * mass
+        else:
+            Z1 = 1.0 + (1.0 - spin**2)**(1/3) * ((1.0 + spin)**(1/3) + (1.0 - spin)**(1/3))
+            Z2 = (3.0 * spin**2 + Z1**2)**0.5
+            disk_inner = mass * (3.0 + Z2 - ((3.0 - Z1)*(3.0 + Z1 + 2.0*Z2))**0.5)
     else:
-        Z1 = 1.0 + (1.0 - (a/mass)**2)**(1/3) * ((1.0 + a/mass)**(1/3) + (1.0 - a/mass)**(1/3))
-        Z2 = (3.0 * (a/mass)**2 + Z1**2)**0.5
-        disk_inner = mass * (3.0 + Z2 - ((3.0 - Z1)*(3.0 + Z1 + 2.0*Z2))**0.5)
+        disk_inner = float(disk_inner) * rs
         
     # 3. Outer Limits
-    disk_outer = 18.0 * (2.0 * mass)
-    sim_bounds = 200.0 * (2.0 * mass)
+    disk_outer = 18.0 * rs if disk_outer is None else float(disk_outer) * rs
+    if disk_inner <= 0.0 or disk_outer <= disk_inner:
+        raise ValueError("disk_outer must be greater than disk_inner, and both must be positive")
+    sim_bounds = 200.0 * rs
     
     ray_dirs = generate_camera_rays(width, height, fov, list(cam_pos), list(look_at), roll)
     

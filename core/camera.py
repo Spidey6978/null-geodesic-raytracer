@@ -10,16 +10,31 @@ def generate_camera_rays(width, height, fov_degrees, cam_pos, look_at, roll_degr
     Generates a normalized direction vector for every pixel on the screen.
     Returns an array of shape (height, width, 3).
     """
+    if width <= 0 or height <= 0:
+        raise ValueError("width and height must be positive")
+    if not (0.0 < fov_degrees < 180.0):
+        raise ValueError("fov_degrees must be between 0 and 180")
+
     # 1. Camera Axis Vectors
     cam_pos = np.array(cam_pos, dtype=np.float64)
     look_at = np.array(look_at, dtype=np.float64)
-    up_guide = np.array([0.0, 1.0, 0.0], dtype=np.float64) 
+    up_guide = np.array([0.0, 1.0, 0.0], dtype=np.float64)
 
     forward = look_at - cam_pos
-    forward = forward / np.linalg.norm(forward)
+    forward_norm = np.linalg.norm(forward)
+    if forward_norm < 1e-12:
+        raise ValueError("cam_pos and look_at must be different points")
+    forward = forward / forward_norm
 
     right = np.cross(forward, up_guide)
-    right = right / np.linalg.norm(right)
+    right_norm = np.linalg.norm(right)
+    if right_norm < 1e-12:
+        up_guide = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+        right = np.cross(forward, up_guide)
+        right_norm = np.linalg.norm(right)
+    if right_norm < 1e-12:
+        raise ValueError("camera up vector is degenerate for this view direction")
+    right = right / right_norm
 
     up = np.cross(right, forward)
 
@@ -52,6 +67,8 @@ def generate_camera_rays(width, height, fov_degrees, cam_pos, look_at, roll_degr
     ray_dirs[..., 2] = forward[2] + xx_rot * right[2] + yy_rot * up[2]
 
     norms = np.linalg.norm(ray_dirs, axis=2, keepdims=True)
+    if np.any(norms < 1e-12):
+        raise ValueError("generated a zero-length camera ray")
     ray_dirs = ray_dirs / norms
 
     return ray_dirs
