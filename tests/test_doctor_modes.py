@@ -2,7 +2,9 @@ import sys
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
+from core.geodesics import _compute_conserved_quantities
 from doctor.diagnostics import DoctorData
 from doctor.modes import min_pole_gap
 from doctor.modes import ergosphere_map
@@ -17,6 +19,22 @@ from core.indices import (
     IDX_MAX_DPHI_STEP,
     NUM_DOCTOR_METRICS,
 )
+
+
+def test_compute_conserved_quantities_scales_with_initial_momentum():
+    r = 10.0
+    theta = np.pi / 2.0
+    a = 0.5
+    mass = 1.0
+
+    base = _compute_conserved_quantities(r, theta, 0.1, 0.05, 0.2, a, mass)
+    scaled = _compute_conserved_quantities(r, theta, 0.2, 0.1, 0.4, a, mass)
+
+    assert scaled[0] == pytest.approx(2.0 * base[0])
+    assert scaled[1] == pytest.approx(2.0 * base[1])
+    assert scaled[2] == pytest.approx(4.0 * base[2])
+    assert scaled[3] == pytest.approx(2.0 * base[3])
+    assert scaled[4] == pytest.approx(2.0 * base[4])
 
 
 def test_min_pole_gap_mode_uses_diagnostics_field():

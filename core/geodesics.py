@@ -123,7 +123,9 @@ def _compute_conserved_quantities(r, theta, dot_r, dot_theta, dot_phi, a, M):
     sin_t_safe = max(abs(sin_t), 1e-3)
     Q = p_theta**2 + cos_t**2 * ( (L**2 / sin_t_safe**2) - a**2 * E**2 )
     
-    return 1.0, L / E, Q / (E**2), p_r / E, p_theta / E
+    # Return the physical, unnormalized conserved quantities so downstream
+    # diagnostics and conservation-law checks can interpret them correctly.
+    return E, L, Q, p_r, p_theta
 
 @njit(nopython=True, cache=True)
 def _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, a, M):
@@ -528,6 +530,12 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
         # ── PRE-STEP CAPTURE CHECK ─────────────────────────────────────────
         # Avoids evaluating derivatives at r < capture_radius where
         # Delta is negative and inv_Delta would be large even with softening.
+        for i in range(max_steps):
+            if r < capture_radius:
+                captured = True
+                termination_reason = 1
+                break
+            
         old_r, old_theta, old_phi = r, theta, phi
         
         r_norm    = (r - r_outer_horizon) / (r_outer_horizon * 4.0)

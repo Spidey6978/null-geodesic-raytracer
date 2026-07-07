@@ -414,8 +414,8 @@ def render_pixel_batch(ray_dirs, cam_pos,
         y = idx // width
         x = idx  %  width
 
-        pos0 = cam_pos.copy()
-        vel0 = ray_dirs[y, x].copy()
+        pos0 = cam_pos
+        vel0 = ray_dirs[y, x]
 
         final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, term_reason = \
             integrate_path_lean(
