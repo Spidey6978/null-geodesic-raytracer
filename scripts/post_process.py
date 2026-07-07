@@ -25,27 +25,36 @@ class SimulationSettings:
 
 @dataclass
 class ObservationSettings:
-    exposure:          float = 1.0
-    psf_sigma:         float = 1.2
-    bloom_threshold:   float = 0.8
-    bloom_strength:    float = 0.3
-    noise_photon_scale: float = 500.0   # higher = less noise
-    read_noise_sigma:  float = 0.002
-    tonemap_mode:      str   = "aces"
-    gamma:             float = 2.2
+    exposure:            float = 1.0
+    psf_sigma:           float = 1.2
+    bloom_threshold:     float = 0.80
+    bloom_strength:      float = 0.25
+    highlight_threshold: float = 0.92
+    highlight_strength:  float = 0.12
+    halation_strength:   float = 0.06
+    noise_photon_scale:  float = 500.0
+    read_noise_sigma:    float = 0.002
+    sensor_bit_depth:    int   = 14
+    tonemap_mode:        str   = "aces"
+    gamma:               float = 2.2
 
 
 @dataclass
 class PortfolioSettings:
-    contrast:           float = 1.15
-    saturation_warm:    float = 1.3    # applied to warm (disk) tones
-    saturation_global:  float = 1.1
-    vignette_strength:  float = 0.25
-    unsharp_radius:     float = 1.0
-    unsharp_strength:   float = 0.4
-    tonemap_mode:       str   = "aces"
-    gamma:              float = 2.2
-
+    contrast:             float = 1.15
+    local_contrast_r:     float = 30.0
+    local_contrast_str:   float = 0.4
+    saturation_warm:      float = 1.3
+    saturation_global:    float = 1.1
+    vignette_strength:    float = 0.25
+    unsharp_radius:       float = 1.0
+    unsharp_strength:     float = 0.35
+    halation_strength:    float = 0.05
+    highlight_strength:   float = 0.10
+    film_grain_strength:  float = 0.010
+    chromatic_shift:      float = 0.6
+    tonemap_mode:         str   = "aces"
+    gamma:                float = 2.2
 
 # ── Tonemappers ───────────────────────────────────────────────────────────────
 
