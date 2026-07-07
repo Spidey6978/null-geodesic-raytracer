@@ -369,32 +369,42 @@ def build_simulation_pipeline(s: SimulationSettings) -> Pipeline:
 
 def build_observation_pipeline(s: ObservationSettings) -> Pipeline:
     return [
-        (apply_nan_guard,    {}),
-        (apply_exposure,     {"exposure":      s.exposure}),
-        (apply_bloom,        {"threshold":     s.bloom_threshold,
-                              "strength":      s.bloom_strength}),
-        (apply_psf,          {"sigma":         s.psf_sigma}),
-        (apply_noise,        {"photon_scale":  s.noise_photon_scale,
-                              "read_sigma":    s.read_noise_sigma}),
-        (tonemap,            {"mode":          s.tonemap_mode}),
-        (apply_gamma,        {"gamma":         s.gamma}),
+        (apply_nan_guard,       {}),
+        (apply_exposure,        {"exposure":      s.exposure}),
+        (apply_highlight_glow,  {"threshold":     s.highlight_threshold,
+                                 "strength":      s.highlight_strength}),
+        (apply_bloom,           {"threshold":     s.bloom_threshold,
+                                 "strength":      s.bloom_strength}),
+        (apply_halation,        {"strength":      s.halation_strength}),
+        (apply_psf,             {"sigma":         s.psf_sigma}),
+        (apply_noise,           {"photon_scale":  s.noise_photon_scale,
+                                 "read_sigma":    s.read_noise_sigma}),
+        (tonemap,               {"mode":          s.tonemap_mode}),
+        (apply_sensor_clip,     {"bit_depth":     s.sensor_bit_depth}),
+        (apply_gamma,           {"gamma":         s.gamma}),
     ]
 
 
 def build_portfolio_pipeline(s: PortfolioSettings) -> Pipeline:
     return [
         (apply_nan_guard,            {}),
-        (apply_bloom,                {"threshold": 0.75, "strength": 0.2}),
-        (tonemap,                    {"mode":      s.tonemap_mode}),
-        (apply_contrast_curve,       {"contrast":  s.contrast}),
+        (apply_highlight_glow,       {"strength":      s.highlight_strength}),
+        (apply_halation,             {"strength":      s.halation_strength}),
+        (apply_bloom,                {"threshold":     0.75,
+                                     "strength":      0.18}),
+        (tonemap,                    {"mode":          s.tonemap_mode}),
+        (apply_contrast_curve,       {"contrast":      s.contrast}),
+        (apply_local_contrast,       {"radius":        s.local_contrast_r,
+                                     "strength":      s.local_contrast_str}),
         (apply_selective_saturation, {"warm_boost":    s.saturation_warm,
-                                      "global_boost":  s.saturation_global}),
-        (apply_unsharp_mask,         {"radius":    s.unsharp_radius,
-                                      "strength":  s.unsharp_strength}),
-        (apply_vignette,             {"strength":  s.vignette_strength}),
-        (apply_gamma,                {"gamma":     s.gamma}),
+                                     "global_boost":  s.saturation_global}),
+        (apply_unsharp_mask,         {"radius":        s.unsharp_radius,
+                                     "strength":      s.unsharp_strength}),
+        (apply_chromatic_shift,      {"shift_pixels":  s.chromatic_shift}),
+        (apply_film_grain,           {"strength":      s.film_grain_strength}),
+        (apply_vignette,             {"strength":      s.vignette_strength}),
+        (apply_gamma,               {"gamma":          s.gamma}),
     ]
-
 
 # ── Pipeline executor ─────────────────────────────────────────────────────────
 
