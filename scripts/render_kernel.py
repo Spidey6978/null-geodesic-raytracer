@@ -10,6 +10,16 @@ rays (reason 5) — these are NOT sampled from the star field.
 import os
 import sys
 import argparse
+from pathlib import Path
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(errors="replace")
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 _pre = argparse.ArgumentParser(add_help=False)
 _pre.add_argument("--spin",       type=float, default=None)
@@ -31,7 +41,6 @@ import time
 from datetime import datetime
 from numba import njit, prange
 import json
-from pathlib import Path
 
 from core.camera    import generate_camera_rays
 from core.geodesics import integrate_path_lean
@@ -592,24 +601,6 @@ def render():
     elapsed = time.time() - t0
     print(f"✅  Done in {elapsed:.1f}s")
     
-    from post_process import build_pipeline, run_pipeline, SimulationSettings
-
-    pipeline = build_pipeline(
-        args.post_mode,
-        simulation_settings=SimulationSettings(
-            tonemap_mode=args.tonemap,
-            export_hdr=args.export_hdr
-        )
-    )
-
-    image = run_pipeline(image, pipeline)
-
-    if args.post_mode == "simulation" and args.export_hdr:
-        hdr_path = out.replace(".png", ".json").replace(".json", ".npy")
-        np.save(hdr_path, image)
-        print(f"💾  HDR (linear) → {hdr_path}")
-
-    # ── Output with timestamp + serial + sidecar JSON ────────────────────────
     output_dir = Path(__file__).resolve().parent.parent / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -617,7 +608,41 @@ def render():
     serial    = len(list(output_dir.glob("production_render_*"))) + 1
     stem      = f"production_render_{CAMERA_NAME}_{serial:04d}_a{SPIN:.3f}_{WIDTH}x{HEIGHT}_{timestamp}"
     out       = str(output_dir / f"{stem}.png") if args.out is None else args.out
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
 
+    try:
+        from post_process import (
+            build_pipeline, run_pipeline,
+            SimulationSettings, ObservationSettings, PortfolioSettings,
+        )
+    except ModuleNotFoundError:
+        from scripts.post_process import (
+            build_pipeline, run_pipeline,
+            SimulationSettings, ObservationSettings, PortfolioSettings,
+        )
+
+    pipeline = build_pipeline(
+        args.post_mode,
+        simulation_settings=SimulationSettings(
+            tonemap_mode=args.tonemap,
+            export_hdr=args.export_hdr
+        ),
+        observation_settings=ObservationSettings(
+            tonemap_mode=args.tonemap
+        ),
+        portfolio_settings=PortfolioSettings(
+            tonemap_mode=args.tonemap
+        ),
+    )
+
+    image = run_pipeline(image, pipeline)
+
+    if args.post_mode == "simulation" and args.export_hdr:
+        hdr_path = str(Path(out).with_suffix(".npy"))
+        np.save(hdr_path, image)
+        print(f"💾  HDR (linear) → {hdr_path}")
+
+    # ── Output with timestamp + serial + sidecar JSON ────────────────────────
     meta = {
         "serial":        serial,
         "timestamp":     timestamp,
@@ -638,10 +663,12 @@ def render():
         "camera_preset": args.preset,
         "post_mode":     args.post_mode,
         "tonemap":       args.tonemap,
+        "export_hdr":    args.export_hdr,
         "render_time_s": elapsed,
         "cli":           " ".join(sys.argv),
     }
-    with open(out.replace(".png", ".json"), "w") as f:
+    meta_path = str(Path(out).with_suffix(".json"))
+    with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
 
     fig, ax = plt.subplots(figsize=(WIDTH/80, HEIGHT/80), facecolor="black")
@@ -654,13 +681,45 @@ def render():
         color="white", fontsize=10, pad=8
     )
     plt.tight_layout()
-    plt.savefig(out, bbox_inches="tight", dpi=150, facecolor="black")
-    print(f"💾  Saved → {out}")
-    print(f"📋  Metadata → {out.replace('.png', '.json')}")
+    save_with_metadata(image, out, meta)
+    print(f"📋  Metadata → {meta_path}")
 
     if args.show:
         plt.show()
+    else:
+        plt.close(fig)
 
+def save_with_metadata(final: np.ndarray, out: str, meta: dict) -> None:
+    """
+    Save PNG with embedded metadata in iTXt chunks.
+    Metadata survives most image viewers and is readable by Pillow.
+    Falls back to standard matplotlib save if Pillow unavailable.
+    """
+    try:
+        from PIL import Image, PngImagePlugin
+
+        # Save the post-processed RGB buffer directly so metadata is embedded.
+        img_uint8 = (np.clip(final, 0, 1) * 255).astype(np.uint8)
+        pil_img   = Image.fromarray(img_uint8, mode="RGB")
+
+        png_meta  = PngImagePlugin.PngInfo()
+        # Stamp key physics params directly in the PNG
+        fields = ["spin", "mass", "r_horizon", "disk_inner", "disk_outer",
+                  "cam_pos", "fov", "dt", "max_steps", "post_mode",
+                  "tonemap", "render_time_s", "camera_preset"]
+        for f in fields:
+            if f in meta:
+                png_meta.add_itxt(f, str(meta[f]))
+        # Also stamp the full JSON blob for complete reproducibility
+        png_meta.add_itxt("render_meta", json.dumps(meta))
+
+        pil_img.save(out, pnginfo=png_meta, optimize=False)
+        print(f"Saved (with embedded metadata) -> {out}")
+
+    except ImportError:
+        # Pillow not available — fall back to matplotlib
+        plt.savefig(out, bbox_inches="tight", dpi=150, facecolor="black")
+        print(f"Saved -> {out}  (install Pillow for embedded metadata)")
 
 if __name__ == "__main__":
     render()
