@@ -459,6 +459,51 @@ def apply_adaptive_bloom(img: np.ndarray,
 
     return img + bloom * effective_str
 
+def apply_false_color(img: np.ndarray,
+                      quantity_map: np.ndarray,
+                      colormap:     str   = "inferno",
+                      vmin:         float = None,
+                      vmax:         float = None,
+                      alpha:        float = 1.0,
+                      log_scale:    bool  = False) -> np.ndarray:
+    """
+    Overlays or replaces the image with a false-color map of a scalar quantity.
+    
+    quantity_map: (H, W) float array — any doctor diagnostic field.
+                  e.g. Doppler factor, gravitational redshift, orbit count,
+                  Hamiltonian drift, steps taken.
+    alpha:        0.0 = pure false-color, 1.0 = pure physics render,
+                  intermediate = blend. 0.0 useful for papers, 0.5 for
+                  showing quantity overlaid on the actual image.
+    log_scale:    True for quantities spanning many orders of magnitude
+                  (H drift, inv_sin2) — False for linear quantities (orbit count).
+    
+    Usage example:
+        doppler_map = tensor[:,:, IDX_IMPACT_PARAM]
+        result = apply_false_color(image, doppler_map, colormap="coolwarm",
+                                   vmin=-8, vmax=8, alpha=0.0)
+    """
+    import matplotlib.cm as mcm
+
+    q = quantity_map.astype(np.float64)
+
+    if log_scale:
+        q = np.where(q > 0, np.log10(np.clip(q, 1e-12, None)), -12.0)
+        if vmin is not None: vmin = np.log10(max(vmin, 1e-12))
+        if vmax is not None: vmax = np.log10(max(vmax, 1e-12))
+
+    lo = vmin if vmin is not None else float(np.nanmin(q))
+    hi = vmax if vmax is not None else float(np.nanmax(q))
+    span = hi - lo if (hi - lo) > 1e-12 else 1.0
+
+    norm    = np.clip((q - lo) / span, 0.0, 1.0)
+    norm    = np.nan_to_num(norm, 0.0)
+    cmap    = mcm.get_cmap(colormap)
+    colored = cmap(norm)[:, :, :3].astype(np.float32)
+
+    # Blend with physics render
+    return (alpha * img + (1.0 - alpha) * colored).astype(np.float32)
+
 
 # ── Pipeline definitions ──────────────────────────────────────────────────────
 # A pipeline is an ordered list of (effect_fn, kwargs) tuples.
