@@ -204,6 +204,138 @@ def apply_unsharp_mask(img: np.ndarray,
         blurred[:, :, c] = gaussian_filter(img[:, :, c], sigma=radius)
     return np.clip(img + strength * (img - blurred), 0.0, 1.0)
 
+# ── T2 — Physically Motivated Effects ────────────────────────────────────────
+
+def apply_halation(img: np.ndarray,
+                   threshold: float = 0.85,
+                   strength:  float = 0.08,
+                   radius:    float = 12.0) -> np.ndarray:
+    """
+    Film halation: red/orange bleed around intense highlights.
+    Light scatters back through film emulsion base, biased toward red.
+    Subtle — only the brightest disk/corona emission should trigger it.
+    """
+    from scipy.ndimage import gaussian_filter
+
+    luma       = 0.2126*img[:,:,0] + 0.7152*img[:,:,1] + 0.0722*img[:,:,2]
+    margin     = 0.1
+    t          = np.clip((luma - (threshold - margin)) / margin, 0.0, 1.0)
+    smooth_t   = t * t * (3.0 - 2.0 * t)
+
+    # Red-biased scatter kernel — slightly larger radius for red channel
+    halo_r     = gaussian_filter(img[:,:,0] * smooth_t, sigma=radius * 1.2)
+    halo_g     = gaussian_filter(img[:,:,1] * smooth_t, sigma=radius * 0.6)
+    halo_b     = gaussian_filter(img[:,:,2] * smooth_t, sigma=radius * 0.3)
+
+    out        = img.copy()
+    out[:,:,0] = np.clip(img[:,:,0] + halo_r * strength * 1.0, 0.0, None)
+    out[:,:,1] = np.clip(img[:,:,1] + halo_g * strength * 0.4, 0.0, None)
+    out[:,:,2] = np.clip(img[:,:,2] + halo_b * strength * 0.1, 0.0, None)
+    return out
+
+
+def apply_film_grain(img: np.ndarray,
+                     strength:   float = 0.012,
+                     seed:       int   = None) -> np.ndarray:
+    """
+    Luminance-weighted film grain.
+    Grain is stronger in midtones, weaker in highlights and shadows —
+    matches real film grain behaviour and avoids graining the black BH shadow.
+    """
+    rng    = np.random.default_rng(seed)
+    luma   = 0.2126*img[:,:,0] + 0.7152*img[:,:,1] + 0.0722*img[:,:,2]
+
+    # Grain visibility peaks in midtones (luma ~0.5), falls off at extremes
+    grain_mask = 4.0 * luma * (1.0 - luma)   # parabola: 0 at 0 and 1, peak at 0.5
+    grain      = rng.normal(0.0, strength, img.shape[:2])
+    grain     *= grain_mask
+
+    out = img + grain[:, :, np.newaxis]
+    return np.clip(out, 0.0, 1.0)
+
+
+def apply_highlight_glow(img: np.ndarray,
+                         threshold: float = 0.92,
+                         strength:  float = 0.15,
+                         radius:    float = 20.0) -> np.ndarray:
+    """
+    Very soft halo around extremely bright regions only.
+    Different from bloom — much larger radius, much lower strength,
+    only fires at near-saturation brightness. Represents optical scatter
+    in the lens/detector system.
+    """
+    from scipy.ndimage import gaussian_filter
+
+    luma     = 0.2126*img[:,:,0] + 0.7152*img[:,:,1] + 0.0722*img[:,:,2]
+    margin   = 0.05
+    t        = np.clip((luma - (threshold - margin)) / margin, 0.0, 1.0)
+    smooth_t = t * t * (3.0 - 2.0 * t)
+
+    glow = np.empty_like(img)
+    for c in range(3):
+        glow[:,:,c] = gaussian_filter(img[:,:,c] * smooth_t, sigma=radius)
+
+    return np.clip(img + glow * strength, 0.0, None)
+
+
+def apply_sensor_clip(img: np.ndarray,
+                      bit_depth: int = 14) -> np.ndarray:
+    """
+    Simulate finite detector bit depth.
+    Quantises values to 2^bit_depth levels before saving.
+    14-bit is typical for modern scientific CCDs.
+    """
+    levels = float(2 ** bit_depth - 1)
+    return np.clip(np.round(img * levels) / levels, 0.0, 1.0)
+
+
+# ── T3 — Portfolio Effects ────────────────────────────────────────────────────
+
+def apply_local_contrast(img: np.ndarray,
+                         radius:   float = 30.0,
+                         strength: float = 0.5) -> np.ndarray:
+    """
+    Local contrast enhancement (large-radius unsharp mask on luma).
+    Increases apparent detail and depth without changing global brightness.
+    Radius much larger than apply_unsharp_mask — affects structure, not edges.
+    """
+    from scipy.ndimage import gaussian_filter
+
+    luma      = (0.2126*img[:,:,0] + 0.7152*img[:,:,1]
+                 + 0.0722*img[:,:,2])[:, :, np.newaxis]
+    luma_blur = np.empty_like(img)
+    for c in range(3):
+        luma_blur[:,:,c] = gaussian_filter(img[:,:,c], sigma=radius)
+
+    detail    = img - luma_blur
+    out       = img + detail * strength
+    return np.clip(out, 0.0, 1.0)
+
+
+def apply_chromatic_shift(img: np.ndarray,
+                          shift_pixels: float = 0.8) -> np.ndarray:
+    """
+    Chromatic aberration: tiny lateral colour fringing.
+    Red channel shifted slightly outward from center, blue inward.
+    Use only for portfolio/cinematic — not physically motivated for telescopes.
+    Shift is sub-pixel by default so it reads as texture not distortion.
+    """
+    from scipy.ndimage import shift as ndshift
+
+    h, w  = img.shape[:2]
+    cy, cx = h / 2.0, w / 2.0
+
+    out = img.copy()
+    # Red: shift outward (away from center) by shift_pixels
+    out[:,:,0] = ndshift(img[:,:,0],
+                          shift=[ shift_pixels * 0.5,  shift_pixels * 0.5],
+                          mode='reflect')
+    # Blue: shift inward (toward center)
+    out[:,:,2] = ndshift(img[:,:,2],
+                          shift=[-shift_pixels * 0.5, -shift_pixels * 0.5],
+                          mode='reflect')
+    return np.clip(out, 0.0, 1.0)
+
 
 def apply_nan_guard(img: np.ndarray) -> np.ndarray:
     """Always first in every pipeline. Cleans up physics output."""
