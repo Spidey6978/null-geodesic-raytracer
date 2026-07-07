@@ -583,6 +583,8 @@ def render():
     )
     elapsed = time.time() - t0
     print(f"✅  Done in {elapsed:.1f}s")
+    
+    from post_process import build_pipeline, run_pipeline, SimulationSettings
 
     image = np.nan_to_num(image, nan=0.0, posinf=1.0, neginf=0.0)
     image = aces_tonemap(image)
