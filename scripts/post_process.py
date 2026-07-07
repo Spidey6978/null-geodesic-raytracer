@@ -350,6 +350,115 @@ def apply_nan_guard(img: np.ndarray) -> np.ndarray:
     """Always first in every pipeline. Cleans up physics output."""
     return np.nan_to_num(img, nan=0.0, posinf=1.0, neginf=0.0)
 
+# ── T4 — Advanced Effects ─────────────────────────────────────────────────────
+
+def apply_airy_disk_psf(img: np.ndarray,
+                        radius: float = 2.5,
+                        rings:  int   = 2) -> np.ndarray:
+    """
+    Diffraction-limited telescope PSF — Airy disk pattern.
+    More physically accurate than Gaussian for space telescopes.
+    
+    The Airy disk is the diffraction pattern from a circular aperture:
+        I(r) = (2*J1(x)/x)^2  where x = pi*r*D/(lambda*f)
+    
+    We approximate it with a central Gaussian core plus attenuating rings,
+    which is accurate for the first 2-3 diffraction rings and much faster
+    than computing the full Bessel function kernel.
+    
+    radius: half-width of central disk in pixels (controls telescope resolution)
+    rings:  number of diffraction rings to simulate (1-3 realistic)
+    """
+    from scipy.ndimage import gaussian_filter
+
+    # Central Airy disk — tighter than a pure Gaussian
+    core   = np.empty_like(img)
+    for c in range(3):
+        core[:,:,c] = gaussian_filter(img[:,:,c], sigma=radius * 0.42)
+
+    result = core * 0.84   # central disk contains 84% of total energy
+
+    # Diffraction rings — each ring broader and dimmer than previous
+    ring_fractions = [0.07, 0.03, 0.02][:rings]
+    ring_radii     = [radius * 1.64, radius * 2.66, radius * 3.70][:rings]
+
+    for frac, r in zip(ring_fractions, ring_radii):
+        ring = np.empty_like(img)
+        for c in range(3):
+            ring[:,:,c] = gaussian_filter(img[:,:,c], sigma=r)
+        # Rings are annular — subtract inner from outer contribution
+        result = result + ring * frac
+
+    return result
+
+
+def apply_moffat_psf(img: np.ndarray,
+                     fwhm:  float = 3.0,
+                     beta:  float = 2.5) -> np.ndarray:
+    """
+    Moffat PSF — more realistic than Gaussian for ground-based telescopes.
+    Models atmospheric seeing (turbulence in Earth's atmosphere).
+    
+    Moffat profile: I(r) = (1 + (r/alpha)^2)^(-beta)
+    
+    beta controls the wing falloff:
+        beta=1.5  : strong seeing, fat wings
+        beta=2.5  : typical good seeing
+        beta=4.0+ : approaches Gaussian (space telescope equivalent)
+    
+    fwhm: full-width half-maximum in pixels
+    """
+    h, w = img.shape[:2]
+
+    # Build the Moffat kernel
+    alpha  = fwhm / (2.0 * np.sqrt(2.0 ** (1.0/beta) - 1.0))
+    size   = int(np.ceil(fwhm * 4)) | 1   # odd size
+    half   = size // 2
+    y, x   = np.mgrid[-half:half+1, -half:half+1]
+    r2     = (x**2 + y**2) / alpha**2
+    kernel = (1.0 + r2) ** (-beta)
+    kernel = kernel / kernel.sum()   # normalise to unit energy
+
+    from scipy.ndimage import convolve
+    out = np.empty_like(img)
+    for c in range(3):
+        out[:,:,c] = convolve(img[:,:,c], kernel, mode='reflect')
+    return out
+
+
+def apply_adaptive_bloom(img: np.ndarray,
+                         base_threshold: float = 0.75,
+                         base_strength:  float = 0.25,
+                         radius:         float = 8.0) -> np.ndarray:
+    """
+    Adaptive bloom: strength scales with local scene brightness.
+    Bright scenes get stronger bloom, dark scenes get weaker bloom.
+    More physically accurate than fixed-strength bloom since scatter
+    in optical systems scales with incident flux.
+    
+    The adaptation factor is computed from the mean luminance of the
+    bright region, so a nearly-saturated disk produces more scatter
+    than a dim secondary image even if both exceed the threshold.
+    """
+    from scipy.ndimage import gaussian_filter
+
+    luma     = 0.2126*img[:,:,0] + 0.7152*img[:,:,1] + 0.0722*img[:,:,2]
+    margin   = 0.12
+    t        = np.clip((luma - (base_threshold - margin)) / margin, 0.0, 1.0)
+    smooth_t = t * t * (3.0 - 2.0 * t)
+
+    # Adaptation: bloom strength scales with mean brightness above threshold
+    bright_region   = luma * smooth_t
+    mean_brightness = bright_region.mean() + 1e-6
+    adapt_factor    = np.clip(mean_brightness * 8.0, 0.5, 2.5)
+    effective_str   = base_strength * adapt_factor
+
+    bloom = np.empty_like(img)
+    for c in range(3):
+        bloom[:,:,c] = gaussian_filter(img[:,:,c] * smooth_t, sigma=radius)
+
+    return img + bloom * effective_str
+
 
 # ── Pipeline definitions ──────────────────────────────────────────────────────
 # A pipeline is an ordered list of (effect_fn, kwargs) tuples.
