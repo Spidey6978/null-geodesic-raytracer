@@ -511,6 +511,14 @@ def render():
                             "  quality    : 960x540,  dt=0.1, steps=5000  (~30s)\n"
                             "  production : 1920x1080, dt=0.1, steps=8000 (~4min)"
                         ))
+    parser.add_argument("--post-mode", type=str, default="simulation",
+                    choices=["simulation", "observation", "portfolio"],
+                    help="Post-processing pipeline (default: simulation)")
+    parser.add_argument("--export-hdr", action="store_true",
+                    help="Save raw linear HDR as .npy (simulation mode only)")
+    parser.add_argument("--tonemap", type=str, default="aces",
+                    choices=["aces", "reinhard", "filmic", "linear"],
+                    help="Tonemapper (default: aces)")
 
     args = parser.parse_args()
         
@@ -586,8 +594,20 @@ def render():
     
     from post_process import build_pipeline, run_pipeline, SimulationSettings
 
-    image = np.nan_to_num(image, nan=0.0, posinf=1.0, neginf=0.0)
-    image = aces_tonemap(image)
+    pipeline = build_pipeline(
+        args.post_mode,
+        simulation_settings=SimulationSettings(
+            tonemap_mode=args.tonemap,
+            export_hdr=args.export_hdr
+        )
+    )
+
+    image = run_pipeline(image, pipeline)
+
+    if args.post_mode == "simulation" and args.export_hdr:
+        hdr_path = out.replace(".png", ".json").replace(".json", ".npy")
+        np.save(hdr_path, image)
+        print(f"💾  HDR (linear) → {hdr_path}")
 
     # ── Output with timestamp + serial + sidecar JSON ────────────────────────
     output_dir = Path(__file__).resolve().parent.parent / "output"
@@ -616,6 +636,8 @@ def render():
         "max_steps":     MAX_STEPS,
         "mode":          args.mode,
         "camera_preset": args.preset,
+        "post_mode":     args.post_mode,
+        "tonemap":       args.tonemap,
         "render_time_s": elapsed,
         "cli":           " ".join(sys.argv),
     }
