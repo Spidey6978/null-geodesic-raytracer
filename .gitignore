@@ -17,3 +17,4 @@ output/
 .DS_Store
 Thumbs.db
 doctor/outputs/
+commit history upto post process freeze point.txt
