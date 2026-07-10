@@ -91,8 +91,10 @@ CAMERA_PRESETS = {
                 "than prograde shots. Good Doppler asymmetry comparison."
     },
     "gravitational_lens": {
-    "cam_pos": [0.0, 0.1, 30.0], "look_at": [0.0, 0.0, 0.0], "fov": 8,
-    "note": "Very distant, very tight. BH acts as pure gravitational lens. "
+        # Camera far away with very tight FOV. The BH acts as a gravitational lens
+        # for background stars. Multiple images of the same star should appear
+        "cam_pos": [0.0, 0.1, 30.0], "look_at": [0.0, 0.0, 0.0], "fov": 8,
+        "note": "Very distant, very tight. BH acts as pure gravitational lens. "
             "Multiple images of background stars visible around shadow edge."
 },
 
@@ -128,14 +130,19 @@ CAMERA_PRESETS = {
         "note": "45-degree elevation. Disk appears as oval. Spacecraft perspective."
     },
     "penrose_zone": {
-    "cam_pos": [0.0, 0.5, 6.0], "look_at": [0.0, 0.0, 0.0], "fov": 35,
-    "note": "Tight framing on the ergosphere region at a=0.998. "
+        # Tight framing on the ergosphere region at a=0.998.
+        # The asymmetric brightness between prograde and retrograde orbits
+        # is most visible at this distance and FOV.
+        "cam_pos": [0.0, 0.5, 6.0], "look_at": [0.0, 0.0, 0.0], "fov": 35,
+        "note": "Tight framing on the ergosphere region at a=0.998. "
             "The asymmetric brightness between prograde and retrograde "
             "orbits is most visible at this distance and FOV."
     },
     "photon_ring": {
-    "cam_pos": [0.0, 0.1, 20.0], "look_at": [0.0, 0.0, 0.0], "fov": 12,
-    "note": "Near-equatorial, tight FOV centered on shadow boundary. "
+        # Near-equatorial, tight FOV centered on shadow boundary.
+        # At 1920x1080 the secondary photon ring should be resolvable
+        "cam_pos": [0.0, 0.1, 20.0], "look_at": [0.0, 0.0, 0.0], "fov": 12,
+        "note": "Near-equatorial, tight FOV centered on shadow boundary. "
             "At 1920x1080 the secondary photon ring should be resolvable "
             "as a distinct bright arc just outside the shadow."
     },
