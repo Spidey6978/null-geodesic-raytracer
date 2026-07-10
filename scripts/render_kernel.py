@@ -53,24 +53,95 @@ _PB = np.array([0.00, 0.00, 0.05, 0.25, 0.88, 1.00], dtype=np.float64)
 _HIT_W = np.array([1.0, 0.22, 0.07, 0.02], dtype=np.float64)
 
 # ── Star field ────────────────────────────────────────────────────────────────
-_RNG         = np.random.default_rng(42)
-_N_STARS     = 3000
-_STAR_DIRS   = _RNG.normal(size=(_N_STARS, 3)).astype(np.float64)
-_STAR_DIRS  /= np.linalg.norm(_STAR_DIRS, axis=1, keepdims=True)
-_STAR_BRIGHT = (_RNG.power(0.3, _N_STARS) * 0.85 + 0.15).astype(np.float64)
-_STAR_RADII  = np.clip(_RNG.exponential(0.0015, _N_STARS), 0.0008, 0.006).astype(np.float64)
-_STAR_COS_RADII = np.cos(_STAR_RADII).astype(np.float64)
-_STAR_COLOUR = _RNG.choice(
-    np.array([0, 1, 2, 3], dtype=np.int64), size=_N_STARS,
-    p=[0.05, 0.30, 0.35, 0.30]
-).astype(np.int64)
+# Physically motivated stellar population:
+#   - Galactic plane concentration (higher density toward a chosen plane)
+#   - IMF-weighted spectral types (mostly white/yellow, few blue, rare red)
+#   - Logarithmic brightness distribution (many dim, few bright)
+#   - Fixed sub-pixel angular size regardless of FOV
+
+_RNG = np.random.default_rng(42)
+_N_STARS = 8000
+
+# ── Spectral type palette (O/B, A/F, G, K, M) ────────────────────────────────
+# Colors tuned to actual stellar chromaticity, not artistic approximation.
+# O/B: ~15000-30000K  A/F: ~7000-10000K  G: ~5500K  K: ~4000K  M: ~3000K
 _STAR_PAL = np.array([
-    [0.70, 0.82, 1.00],   # O/B blue-white
-    [0.97, 0.97, 1.00],   # F/G near-white
-    [1.00, 0.78, 0.42],   # K   orange
-    [1.00, 0.40, 0.18],   # M   red-orange
+    [0.64, 0.75, 1.00],   # O/B  blue-white (hot)
+    [0.95, 0.97, 1.00],   # A/F  near-white with faint blue cast
+    [1.00, 0.97, 0.88],   # G    warm white (sun-like)
+    [1.00, 0.82, 0.60],   # K    pale orange
+    [1.00, 0.54, 0.30],   # M    deep orange-red (rare, dim)
 ], dtype=np.float64)
 
+# Spectral type probabilities weighted by visual contribution to night sky
+# (not raw stellar counts — M dwarfs dominate by number but not by visibility)
+_STAR_COLOUR = _RNG.choice(
+    np.array([0, 1, 2, 3, 4], dtype=np.int64), size=_N_STARS,
+    p=[0.06, 0.22, 0.38, 0.24, 0.10]
+).astype(np.int64)
+
+# ── Directional distribution with galactic plane concentration ────────────────
+# Generate base uniform sphere directions, then weight toward a galactic plane.
+# Galactic plane normal chosen arbitrarily — rotate to taste.
+_raw_dirs = _RNG.normal(size=(_N_STARS, 3)).astype(np.float64)
+_raw_dirs /= np.linalg.norm(_raw_dirs, axis=1, keepdims=True)
+
+# Galactic plane normal (points "up" out of the plane)
+# Tilt it ~60 degrees from world-y so it cuts diagonally across most views
+_GAL_NORMAL = np.array([0.5, 0.866, 0.0], dtype=np.float64)
+_GAL_NORMAL /= np.linalg.norm(_GAL_NORMAL)
+
+# Galactic latitude of each raw direction (0 = in plane, pi/2 = pole)
+_gal_lat = np.abs(np.dot(_raw_dirs, _GAL_NORMAL))  # 0=plane, 1=pole
+
+# Acceptance probability: stars near the plane (low _gal_lat) are more likely
+# Use a von Mises-Fisher-like weighting: p = exp(-gal_lat^2 / sigma^2)
+_GAL_SIGMA = 0.45   # controls width of galactic band; larger = broader band
+_accept_prob = np.exp(-(_gal_lat ** 2) / (_GAL_SIGMA ** 2))
+# Also add a uniform floor so off-plane stars still exist
+_accept_prob = 0.25 + 0.75 * _accept_prob
+_accept_prob /= _accept_prob.max()
+
+# Rejection sample to thin out polar regions
+_keep = _RNG.random(_N_STARS) < _accept_prob
+# Pad with uniform stars if rejection removed too many
+_n_kept = _keep.sum()
+if _n_kept < _N_STARS:
+    _extra = _RNG.normal(size=(_N_STARS - _n_kept, 3)).astype(np.float64)
+    _extra /= np.linalg.norm(_extra, axis=1, keepdims=True)
+    _STAR_DIRS = np.vstack([_raw_dirs[_keep], _extra]).astype(np.float64)
+else:
+    _STAR_DIRS = _raw_dirs[:_N_STARS].astype(np.float64)
+
+# Re-normalize after stacking
+_STAR_DIRS /= np.linalg.norm(_STAR_DIRS, axis=1, keepdims=True)
+
+# ── Brightness: logarithmic distribution ─────────────────────────────────────
+# power(0.12) gives heavy weight to dim stars with rare bright outliers.
+# Floor at 0.04 so dimmest stars are still technically visible.
+# Spectral type modulates brightness: hot stars are intrinsically brighter.
+_base_bright = (_RNG.power(0.12, _N_STARS) * 0.92 + 0.04).astype(np.float64)
+
+# Spectral brightness modifier: O/B stars intrinsically brighter, M stars dimmer
+_SPEC_BRIGHT_MOD = np.array([1.4, 1.1, 1.0, 0.75, 0.45], dtype=np.float64)
+_bright_mod = np.array([_SPEC_BRIGHT_MOD[c] for c in _STAR_COLOUR])
+_STAR_BRIGHT = np.clip(_base_bright * _bright_mod, 0.0, 1.0).astype(np.float64)
+
+# ── Angular size: fixed sub-pixel, FOV-independent ───────────────────────────
+# All stars are point sources at 0.00035 radians (~0.02 degrees).
+# This is below 1 pixel at any practical FOV — stars render as single pixels.
+# DO NOT scale this by FOV. Lensing distortion comes from position shift
+# (via final_dir), not from size inflation.
+_STAR_RADIUS   = 0.00035   # radians — fixed, FOV-independent
+_STAR_COS_RADII = np.full(_N_STARS, np.cos(_STAR_RADIUS), dtype=np.float64)
+
+# ── Large-scale density modulation (breaks uniformity, adds depth feel) ───────
+# Low-frequency brightness variation across the sky simulates unresolved
+# background structure (distant galaxy clusters, nebulae, dust lanes).
+# Applied as a per-star brightness multiplier based on sky position.
+_gal_density = 0.7 + 0.3 * np.exp(-(_gal_lat ** 2) / (0.3 ** 2))
+_STAR_BRIGHT *= _gal_density
+_STAR_BRIGHT = np.clip(_STAR_BRIGHT, 0.0, 1.0).astype(np.float64)
 
 # ── Numba shader helpers ──────────────────────────────────────────────────────
 
@@ -156,23 +227,37 @@ def _disk_colour(hit_radius, hit_phi, hv0, hv1, hv2, weight,
 @njit(cache=True)
 def _star_colour(ray_dir, star_dirs, star_bright, star_cos_radii,
                  star_colour, star_pal, out):
+    # Normalize ray direction
     rn = (ray_dir[0]**2 + ray_dir[1]**2 + ray_dir[2]**2) ** 0.5
     if rn < 1e-12:
         out[0] = out[1] = out[2] = 0.0
         return
     rx = ray_dir[0]/rn;  ry = ray_dir[1]/rn;  rz = ray_dir[2]/rn
-    best_b = -1.0;  best_idx = -1
+
+    # Find the single brightest star within angular radius
+    # (point source model — no disc rendering, no size accumulation)
+    best_b   = -1.0
+    best_idx = -1
     for i in range(star_dirs.shape[0]):
         dot = star_dirs[i,0]*rx + star_dirs[i,1]*ry + star_dirs[i,2]*rz
         if dot > star_cos_radii[i] and star_bright[i] > best_b:
-            best_b = star_bright[i];  best_idx = i
+            best_b   = star_bright[i]
+            best_idx = i
+
     if best_idx < 0:
         out[0] = out[1] = out[2] = 0.0
-    else:
-        sc = star_colour[best_idx]
-        out[0] = star_pal[sc, 0] * best_b
-        out[1] = star_pal[sc, 1] * best_b
-        out[2] = star_pal[sc, 2] * best_b
+        return
+
+    sc = star_colour[best_idx]
+
+    # Apply brightness with a mild gamma lift so dim stars
+    # aren't completely invisible but bright stars still pop
+    # gamma = 0.7 compresses the range: dim stars get a slight lift
+    b = best_b ** 0.7
+
+    out[0] = star_pal[sc, 0] * b
+    out[1] = star_pal[sc, 1] * b
+    out[2] = star_pal[sc, 2] * b
 
 
 @njit(cache=True)
@@ -254,8 +339,8 @@ def render_pixel_batch(ray_dirs, cam_pos,
         y = idx // width
         x = idx  %  width
 
-        pos0 = cam_pos.copy()
-        vel0 = ray_dirs[y, x].copy()
+        pos0 = cam_pos
+        vel0 = ray_dirs[y, x]
 
         final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, term_reason = \
             integrate_path_lean(
@@ -376,11 +461,7 @@ def render():
                         ))
 
     args = parser.parse_args()
-    
-    fov_scale=args.fov / 70.0
-    star_radii_scaled = (_STAR_RADII * fov_scale).astype(np.float64)
-    star_cos_radii_scaled = np.cos(star_radii_scaled).astype(np.float64)
-    
+        
     if args.preset:
         p = CAMERA_PRESETS[args.preset]
         args.cam_pos = p["cam_pos"]
@@ -427,7 +508,7 @@ def render():
     _d_ray = ray_dirs[:2, :2, :].copy()
     render_pixel_batch(
         _d_ray, CAM_POS,
-        _STAR_DIRS, _STAR_BRIGHT, star_cos_radii_scaled, _STAR_COLOUR, _STAR_PAL,
+        _STAR_DIRS, _STAR_BRIGHT, _STAR_COS_RADII, _STAR_COLOUR, _STAR_PAL,
         _PT, _PR, _PG, _PB,
         _d_img, 2, 2,
         MASS, SPIN, R_OUTER_HORIZON,
@@ -440,7 +521,7 @@ def render():
     t0 = time.time()
     render_pixel_batch(
         ray_dirs, CAM_POS,
-        _STAR_DIRS, _STAR_BRIGHT, star_cos_radii_scaled, _STAR_COLOUR, _STAR_PAL,
+        _STAR_DIRS, _STAR_BRIGHT, _STAR_COS_RADII, _STAR_COLOUR, _STAR_PAL,
         _PT, _PR, _PG, _PB,
         image, WIDTH, HEIGHT,
         MASS, SPIN, R_OUTER_HORIZON,
