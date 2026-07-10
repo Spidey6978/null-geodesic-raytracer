@@ -132,7 +132,7 @@ _STAR_BRIGHT = np.clip(_base_bright * _bright_mod, 0.0, 1.0).astype(np.float64)
 # This is below 1 pixel at any practical FOV — stars render as single pixels.
 # DO NOT scale this by FOV. Lensing distortion comes from position shift
 # (via final_dir), not from size inflation.
-_STAR_RADIUS   = 0.00035   # radians — fixed, FOV-independent
+_STAR_RADIUS   = 0.002  # radians — fixed, FOV-independent
 _STAR_COS_RADII = np.full(_N_STARS, np.cos(_STAR_RADIUS), dtype=np.float64)
 
 # ── Large-scale density modulation (breaks uniformity, adds depth feel) ───────
@@ -429,7 +429,7 @@ def render():
                     help="Named camera preset (overrides --cam-pos, --look-at, --fov)")
 
     # Integration
-    parser.add_argument("--dt",        type=float, default=0.1,
+    parser.add_argument("--dt",        type=float, default=0.2,
                         help="Base step size (default: 0.1)")
     parser.add_argument("--max-steps", type=int,   default=5000,
                         help="Max integration steps per ray (default: 5000)")
@@ -457,7 +457,7 @@ def render():
                             "Preset mode (overrides dt/max-steps/width/height):\n"
                             "  preview    : 600x400,  dt=0.1, steps=1500  (~5s)\n"
                             "  quality    : 960x540,  dt=0.1, steps=5000  (~30s)\n"
-                            "  production : 1920x1080, dt=0.1, steps=8000 (~4min)"
+                            "  production : 1920x1080, dt=0.2, steps=8000 (~4min)"
                         ))
 
     args = parser.parse_args()
@@ -475,7 +475,7 @@ def render():
     PRESETS = {
         "preview":    dict(width=600,  height=400,  dt=0.1, max_steps=1500),
         "quality":    dict(width=960,  height=540,  dt=0.1, max_steps=5000),
-        "production": dict(width=1920, height=1080, dt=0.1, max_steps=8000),
+        "production": dict(width=1920, height=1080, dt=0.2, max_steps=8000),
     }
     if args.mode:
         p = PRESETS[args.mode]
