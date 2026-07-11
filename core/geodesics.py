@@ -540,6 +540,11 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
         dt_local  = dt * max(r_factor * theta_factor, 0.01)
         dt_half   = dt_local * 0.5
 
+        if r < capture_radius:
+            captured = True
+            termination_reason = 1
+            break
+        
         # RK4
         dr1, dth1, dph1, dpr1, dpth1, dt1 = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, a, mass)
         abs_dph1 = abs(dph1)
