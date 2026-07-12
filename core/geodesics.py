@@ -225,9 +225,10 @@ def integrate_path(start_pos, start_vel, dt, max_steps,
         steps_taken += 1
         
         # ── Smooth adaptive dt ────────────────────────────────────────────────────
-        # Two independent danger penalties compound multiplicatively:
+        # Three independent danger penalties compound multiplicatively:
         #   r_factor   → reduces dt near the event horizon (Delta → 0)
         #   theta_factor → reduces dt near the spin axis (sin²θ → 0)
+        #   pole_factor  → reduces dt when the path approaches the polar axis.
         # Combined floor of 0.01 prevents dt from going to zero.
 
         r_norm    = (r - r_outer_horizon) / (r_outer_horizon * 4.0)
@@ -235,9 +236,11 @@ def integrate_path(start_pos, start_vel, dt, max_steps,
         r_factor  = r_factor if r_factor > 0.0 else 0.0
 
         sin2      = np.sin(theta) ** 2
+        gap       = theta if theta < pi_2 else np.pi - theta
         theta_factor = sin2 / (sin2 + 0.05)
+        pole_factor = gap / (gap + 0.05)
 
-        dt_local  = dt * max(r_factor * theta_factor, 0.01)
+        dt_local  = dt * max(r_factor * theta_factor * pole_factor, 0.01)
         dt_half   = dt_local * 0.5
         
         old_r, old_theta, old_phi = r, theta, phi
@@ -299,7 +302,8 @@ def integrate_path(start_pos, start_vel, dt, max_steps,
                 t_frac = (pi_2 - old_theta) / d_theta
                 hit_r = old_r + t_frac * (r - old_r)
                 
-                if (disk_inner) <= hit_r <= (disk_outer):
+                old_gap = old_theta if old_theta < pi_2 else np.pi - old_theta
+                if min(old_gap, gap) > 1e-3 and (disk_inner) <= hit_r <= (disk_outer):
                     if hit_count < 4:
                         hit_phi = old_phi + t_frac * (phi - old_phi)
                         hit_radii[hit_count] = hit_r
@@ -374,9 +378,11 @@ def integrate_path_lean(start_pos, start_vel, dt, max_steps,
         r_factor  = r_factor if r_factor > 0.0 else 0.0
 
         sin2      = np.sin(theta) ** 2
+        gap       = theta if theta < pi_2 else np.pi - theta
         theta_factor = sin2 / (sin2 + 0.05)
+        pole_factor = gap / (gap + 0.05)
 
-        dt_local  = dt * max(r_factor * theta_factor, 0.01)
+        dt_local  = dt * max(r_factor * theta_factor * pole_factor, 0.01)
         dt_half   = dt_local * 0.5
         
         old_r, old_theta, old_phi = r, theta, phi
@@ -429,7 +435,8 @@ def integrate_path_lean(start_pos, start_vel, dt, max_steps,
                 t_frac = (pi_2 - old_theta) / d_theta
                 hit_r = old_r + t_frac * (r - old_r)
                 
-                if (disk_inner) <= hit_r <= (disk_outer):
+                old_gap = old_theta if old_theta < pi_2 else np.pi - old_theta
+                if min(old_gap, gap) > 1e-3 and (disk_inner) <= hit_r <= (disk_outer):
                     if hit_count < 4:
                         hit_phi = old_phi + t_frac * (phi - old_phi)
                         hit_radii[hit_count] = hit_r
@@ -535,9 +542,11 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
         r_factor  = r_factor if r_factor > 0.0 else 0.0
 
         sin2      = np.sin(theta) ** 2
+        gap       = theta if theta < pi_2 else np.pi - theta
         theta_factor = sin2 / (sin2 + 0.05)
+        pole_factor = gap / (gap + 0.05)
 
-        dt_local  = dt * max(r_factor * theta_factor, 0.01)
+        dt_local  = dt * max(r_factor * theta_factor * pole_factor, 0.01)
         dt_half   = dt_local * 0.5
 
         if r < capture_radius:
