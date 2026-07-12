@@ -93,7 +93,7 @@ class BlackHoleRenderEngine(bpy.types.RenderEngine):
             _import_raytracer()
         except ImportError as e:
             self.report({'ERROR'}, f"Failed to import raytracer: {e}")
-        return
+            return
 
         from blender.bh_camera import blender_camera_to_ray_dirs
         cam_pos, ray_dirs, fov_deg = blender_camera_to_ray_dirs(scene, width, height)
