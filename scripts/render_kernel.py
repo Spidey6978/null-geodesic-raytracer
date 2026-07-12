@@ -132,7 +132,7 @@ _STAR_BRIGHT = np.clip(_base_bright * _bright_mod, 0.0, 1.0).astype(np.float64)
 # This is below 1 pixel at any practical FOV — stars render as single pixels.
 # DO NOT scale this by FOV. Lensing distortion comes from position shift
 # (via final_dir), not from size inflation.
-_STAR_RADIUS   = 0.002  # radians — fixed, FOV-independent
+_STAR_RADIUS   = 0.00095  # radians — fixed, FOV-independent
 _STAR_COS_RADII = np.full(_N_STARS, np.cos(_STAR_RADIUS), dtype=np.float64)
 
 # ── Large-scale density modulation (breaks uniformity, adds depth feel) ───────
