@@ -29,19 +29,6 @@ package_imports = {
     "numba": ["numba"],
     "matplotlib": ["matplotlib"],
     "scipy": ["scipy"],
-    "pillow": ["PIL"],
-    "opencv-python": ["cv2"],
-    "fastapi": ["fastapi"],
-    "uvicorn": ["uvicorn"],
-    "python-multipart": ["multipart"],
-    "python-dotenv": ["dotenv"],
-    "celery": ["celery"],
-    "redis": ["redis"],
-    "notebook": ["notebook"],
-    "tqdm": ["tqdm"],
-    "pyngrok": ["pyngrok"],
-    "pytest": ["pytest"],
-    "httpx": ["httpx"],
 }
 
 for package_name, modules in package_imports.items():

@@ -76,36 +76,40 @@ class BlackHoleRenderEngine(bpy.types.RenderEngine):
     bl_use_preview = False   # disable viewport preview for now (Phase 4)
 
     def render(self, depsgraph):
-        scene      = depsgraph.scene
-        render     = scene.render
-        width      = int(render.resolution_x * render.resolution_percentage / 100)
-        height     = int(render.resolution_y * render.resolution_percentage / 100)
+        scene  = depsgraph.scene
+        frame  = scene.frame_current
 
-        self.report({'INFO'}, f"BH Render: {width}x{height}")
+    # Evaluate scene at current frame so keyframes and constraints apply
+        bpy.context.scene.frame_set(frame)
 
-        # ── Import raytracer (first call triggers Numba JIT compilation) ──────
+        render = scene.render
+        width  = int(render.resolution_x * render.resolution_percentage / 100)
+        height = int(render.resolution_y * render.resolution_percentage / 100)
+
+        self.report({'INFO'}, f"BH Render: frame {frame}  {width}×{height}")
+
         try:
             render_pixel_batch, aces_tonemap, phys, stars, planck, hit_w = \
-                _import_raytracer()
+            _import_raytracer()
         except ImportError as e:
             self.report({'ERROR'}, f"Failed to import raytracer: {e}")
-            return
+        return
 
-        # ── Read camera from Blender scene ────────────────────────────────────
         from blender.bh_camera import blender_camera_to_ray_dirs
         cam_pos, ray_dirs, fov_deg = blender_camera_to_ray_dirs(scene, width, height)
 
-        self.report({'INFO'}, f"Camera pos: {cam_pos}  FOV: {fov_deg:.1f}°")
+        self.report({'INFO'}, f"Frame {frame} | cam={cam_pos.tolist()}")
 
-        # ── Render ────────────────────────────────────────────────────────────
         image  = np.zeros((height, width, 3), dtype=np.float64)
-        dt     = 0.1
-        msteps = 5000
+
+        # Read dt and max_steps from scene custom properties if set,
+        # otherwise use sensible animation defaults
+        dt     = scene.get("bh_dt",        0.1)
+        msteps = scene.get("bh_max_steps", 2000)
 
         t0 = time.time()
         render_pixel_batch(
-            ray_dirs,
-            cam_pos,
+            ray_dirs, cam_pos,
             stars[0], stars[1], stars[2], stars[3], stars[4],
             planck[0], planck[1], planck[2], planck[3],
             image, width, height,
@@ -115,26 +119,20 @@ class BlackHoleRenderEngine(bpy.types.RenderEngine):
             dt, msteps
         )
         elapsed = time.time() - t0
-        self.report({'INFO'}, f"Render done in {elapsed:.1f}s")
+        self.report({'INFO'}, f"Frame {frame} done in {elapsed:.1f}s")
 
-        # ── Tonemap ───────────────────────────────────────────────────────────
         image = np.nan_to_num(image, nan=0.0, posinf=1.0, neginf=0.0)
         image = aces_tonemap(image)
 
-        # ── Write to Blender ──────────────────────────────────────────────────
-        # Blender expects pixels as a flat RGBA list, row-major, bottom-to-top.
-        result      = self.begin_result(0, 0, width, height)
-        layer       = result.layers[0].passes["Combined"]
+        result = self.begin_result(0, 0, width, height)
+        layer  = result.layers[0].passes["Combined"]
 
-        # Add alpha channel (1.0 everywhere — fully opaque)
-        rgba        = np.ones((height, width, 4), dtype=np.float32)
-        rgba[:,:,:3] = image.astype(np.float32)
+        rgba = np.ones((height, width, 4), dtype=np.float32)
+        rgba[:, :, :3] = image.astype(np.float32)
+        rgba_flipped = np.ascontiguousarray(rgba[::-1, :, :])
 
-        # Blender wants bottom-to-top row order
-        rgba_flipped = rgba[::-1, :, :].copy()
-
-        # rect expects a flat list of RGBA values
-        layer.rect = rgba_flipped.reshape(-1, 4).tolist()
+        # Pass numpy array directly — not .tolist()
+        layer.rect = rgba_flipped.reshape(-1, 4)
 
         self.end_result(result)
 
