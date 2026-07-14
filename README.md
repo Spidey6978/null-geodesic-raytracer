@@ -50,7 +50,7 @@ Significant effort has been devoted to handling strong-field numerical challenge
 
 ---
 
-## Accomplishments (XYZ Format)
+## Accomplishments
 
 ### Implemented physically-based black hole rendering
 
