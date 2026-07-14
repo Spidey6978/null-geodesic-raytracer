@@ -267,6 +267,8 @@ def _star_colour(ray_dir, star_dirs, star_bright, star_cos_radii,
     best_idx = -1
     for i in range(star_dirs.shape[0]):
         dot = star_dirs[i,0]*rx + star_dirs[i,1]*ry + star_dirs[i,2]*rz
+        if dot < 0.0:
+            continue
         if dot > star_cos_radii[i] and star_bright[i] > best_b:
             best_b   = star_bright[i]
             best_idx = i
