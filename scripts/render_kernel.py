@@ -43,6 +43,33 @@ from scripts.cam_presets import CAMERA_PRESETS
 M      = MASS
 R_ISCO = DISK_INNER   # already correctly computed for Kerr in constants.py
 
+DEFAULT_RENDER_WIDTH = 960
+DEFAULT_RENDER_HEIGHT = 540
+DEFAULT_RENDER_DT = 0.2
+DEFAULT_RENDER_MAX_STEPS = 5000
+
+
+def resolve_render_args(args):
+    presets = {
+        "preview":    dict(width=600,  height=400,  dt=0.1, max_steps=1500),
+        "quality":    dict(width=960,  height=540,  dt=0.1, max_steps=5000),
+        "production": dict(width=1920, height=1080, dt=0.2, max_steps=8000),
+    }
+
+    if args.mode:
+        p = presets[args.mode]
+        args.width = args.width if args.width is not None else p["width"]
+        args.height = args.height if args.height is not None else p["height"]
+        args.dt = args.dt if args.dt is not None else p["dt"]
+        args.max_steps = args.max_steps if args.max_steps is not None else p["max_steps"]
+    else:
+        args.width = DEFAULT_RENDER_WIDTH if args.width is None else args.width
+        args.height = DEFAULT_RENDER_HEIGHT if args.height is None else args.height
+        args.dt = DEFAULT_RENDER_DT if args.dt is None else args.dt
+        args.max_steps = DEFAULT_RENDER_MAX_STEPS if args.max_steps is None else args.max_steps
+
+    return args
+
 # ── Planck locus keyframes ────────────────────────────────────────────────────
 _PT = np.array([0.00, 0.20, 0.45, 0.65, 0.82, 1.00], dtype=np.float64)
 _PR = np.array([0.75, 1.00, 1.00, 1.00, 0.98, 0.70], dtype=np.float64)
@@ -132,7 +159,7 @@ _STAR_BRIGHT = np.clip(_base_bright * _bright_mod, 0.0, 1.0).astype(np.float64)
 # This is below 1 pixel at any practical FOV — stars render as single pixels.
 # DO NOT scale this by FOV. Lensing distortion comes from position shift
 # (via final_dir), not from size inflation.
-_STAR_RADIUS   = 0.001  # radians — fixed, FOV-independent
+_STAR_RADIUS   = 0.002  # radians — fixed, FOV-independent
 _STAR_COS_RADII = np.full(_N_STARS, np.cos(_STAR_RADIUS), dtype=np.float64)
 
 # ── Large-scale density modulation (breaks uniformity, adds depth feel) ───────
@@ -429,14 +456,16 @@ def render():
                     help="Named camera preset (overrides --cam-pos, --look-at, --fov)")
 
     # Integration
-    parser.add_argument("--dt",        type=float, default=0.2,
-                        help="Base step size (default: 0.1)")
-    parser.add_argument("--max-steps", type=int,   default=5000,
-                        help="Max integration steps per ray (default: 5000)")
+    parser.add_argument("--dt",        type=float, default=None,
+                        help="Base step size (defaults to 0.2; overridden by --mode unless you pass --dt explicitly)")
+    parser.add_argument("--max-steps", type=int,   default=None,
+                        help="Max integration steps per ray (defaults to 5000; overridden by --mode unless you pass --max-steps explicitly)")
 
     # Camera
-    parser.add_argument("--width",  type=int,   default=960)
-    parser.add_argument("--height", type=int,   default=540)
+    parser.add_argument("--width",  type=int,   default=None,
+                        help="Render width (defaults to 960; overridden by --mode unless you pass --width explicitly)")
+    parser.add_argument("--height", type=int,   default=None,
+                        help="Render height (defaults to 540; overridden by --mode unless you pass --height explicitly)")
     parser.add_argument("--fov",    type=float, default=100.0)
     parser.add_argument("--roll",   type=float, default=0.0)
     parser.add_argument("--cam-pos", nargs=3, type=float,
@@ -454,7 +483,7 @@ def render():
     parser.add_argument("--mode", type=str, default=None,
                         choices=["preview", "quality", "production"],
                         help=(
-                            "Preset mode (overrides dt/max-steps/width/height):\n"
+                            "Preset mode (fills in width/height/dt/max-steps when you don't pass them explicitly):\n"
                             "  preview    : 600x400,  dt=0.1, steps=1500  (~5s)\n"
                             "  quality    : 960x540,  dt=0.1, steps=5000  (~30s)\n"
                             "  production : 1920x1080, dt=0.2, steps=8000 (~4min)"
@@ -471,18 +500,7 @@ def render():
             args.roll = p["roll"]
         print(f"📍  Preset '{args.preset}': {p['note']}")
 
-    # Apply mode presets (override individual args if mode given)
-    PRESETS = {
-        "preview":    dict(width=600,  height=400,  dt=0.1, max_steps=1500),
-        "quality":    dict(width=960,  height=540,  dt=0.1, max_steps=5000),
-        "production": dict(width=1920, height=1080, dt=0.2, max_steps=8000),
-    }
-    if args.mode:
-        p = PRESETS[args.mode]
-        args.width     = p["width"]
-        args.height    = p["height"]
-        args.dt        = p["dt"]
-        args.max_steps = p["max_steps"]
+    args = resolve_render_args(args)
 
     WIDTH     = args.width
     HEIGHT    = args.height
