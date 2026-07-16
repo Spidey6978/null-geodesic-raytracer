@@ -214,6 +214,31 @@ def integrate_path(start_pos, start_vel, dt, max_steps,
     # KS coordinates would eliminate the need for this buffer entirely.
     capture_radius = r_outer_horizon * 1.05
 
+    if (
+        not np.isfinite(r)
+        or not np.isfinite(theta)
+        or not np.isfinite(phi)
+        or not np.isfinite(E)
+        or not np.isfinite(L)
+        or not np.isfinite(Q)
+        or not np.isfinite(pr)
+        or not np.isfinite(ptheta)
+    ):
+        captured = True
+        termination_reason = 2
+    elif r <= capture_radius:
+        captured = True
+        termination_reason = 1
+    elif r >= sim_bounds:
+        termination_reason = 3
+
+    if termination_reason != 0:
+        final_dir = np.empty(3, dtype=np.float64)
+        final_dir[0] = 0.0
+        final_dir[1] = 0.0
+        final_dir[2] = 0.0
+        return final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, termination_reason
+
     for i in range(max_steps):
         # ── PRE-STEP CAPTURE CHECK ─────────────────────────────────────────
         # Avoids evaluating derivatives at r < capture_radius where
@@ -299,15 +324,15 @@ def integrate_path(start_pos, start_vel, dt, max_steps,
         path[steps_taken, 1] = py
         path[steps_taken, 2] = pz
 
-        if (old_theta - pi_2) * (theta - pi_2) <= 0.0:
-            d_theta = theta - old_theta
-            if d_theta != 0.0:
-                t_frac = (pi_2 - old_theta) / d_theta
-                hit_r = old_r + t_frac * (r - old_r)
-                
-                old_gap = old_theta if old_theta < pi_2 else np.pi - old_theta
-                if min(old_gap, gap) > 1e-3 and (disk_inner) <= hit_r <= (disk_outer):
-                    if hit_count < 4:
+        if hit_count < 4:
+            if (old_theta - pi_2) * (theta - pi_2) <= 0.0:
+                d_theta = theta - old_theta
+                if d_theta != 0.0:
+                    t_frac = (pi_2 - old_theta) / d_theta
+                    hit_r = old_r + t_frac * (r - old_r)
+                    
+                    old_gap = old_theta if old_theta < pi_2 else np.pi - old_theta
+                    if min(old_gap, gap) > 1e-3 and (disk_inner) <= hit_r <= (disk_outer):
                         hit_phi = old_phi + t_frac * (phi - old_phi)
                         hit_radii[hit_count] = hit_r
                         hit_phis[hit_count]  = hit_phi
@@ -360,12 +385,41 @@ def integrate_path_lean(start_pos, start_vel, dt, max_steps,
     captured = False
     hit_count = 0
     termination_reason = 0
+    initial_state_code = 0
     hit_radii = np.zeros(4, dtype=np.float64)
     hit_phis = np.zeros(4, dtype=np.float64)
     hit_vels = np.zeros((4, 3), dtype=np.float64)
 
     pi_2 = np.pi / 2.0
     capture_radius = r_outer_horizon * 1.05
+
+    if (
+        not np.isfinite(r)
+        or not np.isfinite(theta)
+        or not np.isfinite(phi)
+        or not np.isfinite(E)
+        or not np.isfinite(L)
+        or not np.isfinite(Q)
+        or not np.isfinite(pr)
+        or not np.isfinite(ptheta)
+    ):
+        captured = True
+        termination_reason = 2
+        initial_state_code = 1
+    elif r <= capture_radius:
+        captured = True
+        termination_reason = 1
+        initial_state_code = 2
+    elif r >= sim_bounds:
+        termination_reason = 3
+        initial_state_code = 3
+
+    if termination_reason != 0:
+        final_dir = np.empty(3, dtype=np.float64)
+        final_dir[0] = 0.0
+        final_dir[1] = 0.0
+        final_dir[2] = 0.0
+        return final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, termination_reason, initial_state_code
 
     for i in range(max_steps):
         # ── PRE-STEP CAPTURE CHECK ─────────────────────────────────────────
@@ -435,15 +489,15 @@ def integrate_path_lean(start_pos, start_vel, dt, max_steps,
                 ptheta = -ptheta
                 phi += np.pi
 
-        if (old_theta - pi_2) * (theta - pi_2) <= 0.0:
-            d_theta = theta - old_theta
-            if d_theta != 0.0:
-                t_frac = (pi_2 - old_theta) / d_theta
-                hit_r = old_r + t_frac * (r - old_r)
-                
-                old_gap = old_theta if old_theta < pi_2 else np.pi - old_theta
-                if min(old_gap, gap) > 1e-3 and (disk_inner) <= hit_r <= (disk_outer):
-                    if hit_count < 4:
+        if hit_count < 4:
+            if (old_theta - pi_2) * (theta - pi_2) <= 0.0:
+                d_theta = theta - old_theta
+                if d_theta != 0.0:
+                    t_frac = (pi_2 - old_theta) / d_theta
+                    hit_r = old_r + t_frac * (r - old_r)
+                    
+                    old_gap = old_theta if old_theta < pi_2 else np.pi - old_theta
+                    if min(old_gap, gap) > 1e-3 and (disk_inner) <= hit_r <= (disk_outer):
                         hit_phi = old_phi + t_frac * (phi - old_phi)
                         hit_radii[hit_count] = hit_r
                         hit_phis[hit_count]  = hit_phi
@@ -478,13 +532,27 @@ def integrate_path_lean(start_pos, start_vel, dt, max_steps,
        if r<5.0*r_outer_horizon:
           termination_reason = 5 
 
-    fdr, fdth, fdph, _, _, _ = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, spin, mass)
-    f_vx, f_vy, f_vz = _bl_to_cartesian_vel(r, theta, phi, fdr, fdth, fdph, spin)
-    
     final_dir = np.empty(3, dtype=np.float64)
-    final_dir[0] = f_vx; final_dir[1] = f_vy; final_dir[2] = f_vz
+    if captured or termination_reason == 5:
+        final_dir[0] = 0.0
+        final_dir[1] = 0.0
+        final_dir[2] = 0.0
+    else:
+        fdr, fdth, fdph, _, _, _ = _kerr_derivatives(r, theta, phi, pr, ptheta, E, L, Q, spin, mass)
+        f_vx, f_vy, f_vz = _bl_to_cartesian_vel(r, theta, phi, fdr, fdth, fdph, spin)
+        final_dir[0] = f_vx
+        final_dir[1] = f_vy
+        final_dir[2] = f_vz
+
+    if initial_state_code == 0:
+        if captured or termination_reason == 2:
+            initial_state_code = 4
+        elif termination_reason == 3:
+            initial_state_code = 5
+        else:
+            initial_state_code = 6
     
-    return final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, termination_reason
+    return final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, termination_reason, initial_state_code
 
 @njit(nopython=True, cache=True)
 def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_horizon, disk_inner, disk_outer, sim_bounds):

@@ -360,7 +360,7 @@ def aces_tonemap(x):
 def render_pixel_batch(ray_dirs, cam_pos,
                        star_dirs, star_bright, star_cos_radii, star_colour, star_pal,
                        PT, PR, PG, PB,
-                       image, width, height,
+                       image, ray_debug, width, height,
                        mass, spin, r_outer_horizon,
                        disk_inner, disk_outer, sim_bounds,
                        rs, r_isco, hit_w, dt, max_steps):
@@ -368,18 +368,28 @@ def render_pixel_batch(ray_dirs, cam_pos,
         y = idx // width
         x = idx  %  width
 
-        pos0 = cam_pos
-        vel0 = ray_dirs[y, x]
-
-        final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, term_reason = \
+        final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, term_reason, initial_state_code = \
             integrate_path_lean(
-                pos0, vel0, dt, max_steps,
+                cam_pos, ray_dirs[y, x], dt, max_steps,
                 mass, spin, r_outer_horizon,
                 disk_inner, disk_outer, sim_bounds
             )
 
         pixel = np.zeros(3)
         tmp   = np.zeros(3)
+
+        if initial_state_code == 1:
+            ray_debug[y, x] = 1
+        elif initial_state_code == 2:
+            ray_debug[y, x] = 2
+        elif initial_state_code == 3:
+            ray_debug[y, x] = 3
+        elif initial_state_code == 4:
+            ray_debug[y, x] = 4
+        elif initial_state_code == 5:
+            ray_debug[y, x] = 5
+        elif initial_state_code == 6:
+            ray_debug[y, x] = 6
 
         if captured:
             # ── Event horizon — black ─────────────────────────────────────
@@ -522,15 +532,17 @@ def render():
         roll_degrees=args.roll
     )
     image = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float64)
+    ray_debug = np.zeros((HEIGHT, WIDTH), dtype=np.uint8)
 
     print("🔥  Warming up JIT …")
     _d_img = np.zeros((2, 2, 3), dtype=np.float64)
     _d_ray = ray_dirs[:2, :2, :].copy()
+    _d_debug = np.zeros((2, 2), dtype=np.uint8)
     render_pixel_batch(
         _d_ray, CAM_POS,
         _STAR_DIRS, _STAR_BRIGHT, _STAR_COS_RADII, _STAR_COLOUR, _STAR_PAL,
         _PT, _PR, _PG, _PB,
-        _d_img, 2, 2,
+        _d_img, _d_debug, 2, 2,
         MASS, SPIN, R_OUTER_HORIZON,
         DISK_INNER, DISK_OUTER, SIM_BOUNDS,
         RS, DISK_INNER, _HIT_W,
@@ -543,7 +555,7 @@ def render():
         ray_dirs, CAM_POS,
         _STAR_DIRS, _STAR_BRIGHT, _STAR_COS_RADII, _STAR_COLOUR, _STAR_PAL,
         _PT, _PR, _PG, _PB,
-        image, WIDTH, HEIGHT,
+        image, ray_debug, WIDTH, HEIGHT,
         MASS, SPIN, R_OUTER_HORIZON,
         DISK_INNER, DISK_OUTER, SIM_BOUNDS,
         RS, DISK_INNER, _HIT_W,
@@ -551,6 +563,18 @@ def render():
     )
     elapsed = time.time() - t0
     print(f"✅  Done in {elapsed:.1f}s")
+
+    unique, counts = np.unique(ray_debug, return_counts=True)
+    print("🔎  Ray diagnostic counts:")
+    print(f"    total rays:       {HEIGHT * WIDTH}")
+    print(f"    initial invalid:  {int(counts[unique == 1].sum() if np.any(unique == 1) else 0)}")
+    print(f"    initial captured: {int(counts[unique == 2].sum() if np.any(unique == 2) else 0)}")
+    print(f"    initial escaped:  {int(counts[unique == 3].sum() if np.any(unique == 3) else 0)}")
+    entered_rk4 = (HEIGHT * WIDTH) - (int(counts[unique == 1].sum() if np.any(unique == 1) else 0) + int(counts[unique == 2].sum() if np.any(unique == 2) else 0) + int(counts[unique == 3].sum() if np.any(unique == 3) else 0))
+    print(f"    entered RK4:      {entered_rk4}")
+    print(f"    captured in RK4:  {int(counts[unique == 4].sum() if np.any(unique == 4) else 0)}")
+    print(f"    escaped in RK4:   {int(counts[unique == 5].sum() if np.any(unique == 5) else 0)}")
+    print(f"    trapped / budget: {int(counts[unique == 6].sum() if np.any(unique == 6) else 0)}")
 
     image = np.nan_to_num(image, nan=0.0, posinf=1.0, neginf=0.0)
     image = aces_tonemap(image)
