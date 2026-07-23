@@ -9,12 +9,11 @@ from tqdm import tqdm
 from numba import njit, prange
 
 from core.camera    import generate_camera_rays
-# FIX: Import the zero-allocation lean integrator!
 from core.geodesics import integrate_path_lean
 from core.constants import DISK_INNER, DISK_OUTER, RS, C
 
 M      = RS / 2.0
-R_ISCO = 3.0 * RS
+R_ISCO = DISK_INNER
 
 # ── Physics helpers ───────────────────────────────────────────────────────────
 
@@ -192,7 +191,7 @@ def render_frame(width, height, cam_pos, ray_dirs,
         # FIX: Increased dt to 0.4 and dropped max_steps to 500. 
         # This covers exactly 200 spatial units (hitting SIM_BOUNDS) 
         # but cuts the CPU workload by 300%!
-        final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, _ = integrate_path_lean(
+        final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, _, _ = integrate_path_lean(
             cam_pos, ray_dirs[y, x], dt=0.4, max_steps=500
         )
 
