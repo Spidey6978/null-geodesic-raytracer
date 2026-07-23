@@ -1,0 +1,23 @@
+{
+  "mode": "l_drift",
+  "label": "Angular Momentum Drift (|L_check - L|)",
+  "spin": 0.0,
+  "mass": 1.0,
+  "cam_pos": [
+    0.0,
+    0.0,
+    20.0
+  ],
+  "look_at": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "fov": 100.0,
+  "dt": 0.05,
+  "max_steps": 200,
+  "vmin": 1e-08,
+  "vmax": 0.01,
+  "cli": "doctor/render.py --mode l_drift --width 160 --height 90 --dt 0.05 --max-steps 200",
+  "compute_time_s": 0.40498971939086914
+}

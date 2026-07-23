@@ -1,0 +1,23 @@
+{
+  "mode": "ergosphere",
+  "label": "Ergosphere vs Shadow",
+  "spin": 0.5,
+  "mass": 1.0,
+  "cam_pos": [
+    0.0,
+    0.0,
+    20.0
+  ],
+  "look_at": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "fov": 100.0,
+  "dt": 0.2,
+  "max_steps": 5000,
+  "vmin": null,
+  "vmax": null,
+  "cli": "doctor/render.py --mode ergosphere --spin 0.5",
+  "compute_time_s": 92.60348415374756
+}

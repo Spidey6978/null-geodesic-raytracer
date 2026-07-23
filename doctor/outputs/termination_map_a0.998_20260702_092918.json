@@ -1,0 +1,23 @@
+{
+  "mode": "termination_map",
+  "label": "Termination Reason",
+  "spin": 0.998,
+  "mass": 1.0,
+  "cam_pos": [
+    0.0,
+    0.0,
+    20.0
+  ],
+  "look_at": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "fov": 100.0,
+  "dt": 0.2,
+  "max_steps": 5000,
+  "vmin": null,
+  "vmax": null,
+  "cli": "doctor/render.py --mode termination_map",
+  "compute_time_s": 61.020150661468506
+}

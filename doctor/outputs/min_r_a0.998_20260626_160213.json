@@ -1,0 +1,23 @@
+{
+  "mode": "min_r",
+  "label": "Minimum Approach Radius (min_r)",
+  "spin": 0.998,
+  "mass": 1.0,
+  "cam_pos": [
+    6.5,
+    0.4,
+    18.0
+  ],
+  "look_at": [
+    -3.0,
+    -1.0,
+    0.0
+  ],
+  "fov": 100.0,
+  "dt": 0.2,
+  "max_steps": 5000,
+  "vmin": 1.0,
+  "vmax": 10.0,
+  "cli": "doctor/render.py --mode min_r --dt 0.2 --max-steps 5000 --roll 0.0 --spin 0.998",
+  "compute_time_s": 100.9721930027008
+}

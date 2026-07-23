@@ -1,0 +1,23 @@
+{
+  "mode": "orbit_count",
+  "label": "Orbit Count",
+  "spin": 0.998,
+  "mass": 1.0,
+  "cam_pos": [
+    6.5,
+    0.4,
+    18.0
+  ],
+  "look_at": [
+    -3.0,
+    -1.0,
+    0.0
+  ],
+  "fov": 100.0,
+  "dt": 0.2,
+  "max_steps": 5000,
+  "vmin": 0.0,
+  "vmax": 4.0,
+  "cli": "doctor/render.py --mode orbit_count --spin 0.998 --dt 0.2 --max-steps 5000 --roll 90",
+  "compute_time_s": 26.10614585876465
+}

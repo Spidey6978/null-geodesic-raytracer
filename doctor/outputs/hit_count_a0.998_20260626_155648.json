@@ -1,0 +1,23 @@
+{
+  "mode": "hit_count",
+  "label": "Disk Hit Count",
+  "spin": 0.998,
+  "mass": 1.0,
+  "cam_pos": [
+    6.5,
+    0.4,
+    18.0
+  ],
+  "look_at": [
+    -3.0,
+    -1.0,
+    0.0
+  ],
+  "fov": 100.0,
+  "dt": 0.2,
+  "max_steps": 5000,
+  "vmin": null,
+  "vmax": null,
+  "cli": "doctor/render.py --mode hit_count --dt 0.2 --max-steps 5000 --roll 0.0 --spin 0.998",
+  "compute_time_s": 133.15459823608398
+}

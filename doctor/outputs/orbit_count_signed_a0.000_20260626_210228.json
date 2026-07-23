@@ -1,0 +1,23 @@
+{
+  "mode": "orbit_count_signed",
+  "label": "Signed Orbit Count (net winding)",
+  "spin": 0.0,
+  "mass": 1.0,
+  "cam_pos": [
+    0.0,
+    0.0,
+    20.0
+  ],
+  "look_at": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "fov": 100.0,
+  "dt": 0.05,
+  "max_steps": 200,
+  "vmin": -4.0,
+  "vmax": 4.0,
+  "cli": "doctor/render.py --mode orbit_count_signed --width 160 --height 90 --dt 0.05 --max-steps 200",
+  "compute_time_s": 0.10110592842102051
+}

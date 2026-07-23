@@ -1,0 +1,23 @@
+{
+  "mode": "min_pole_gap",
+  "label": "Minimum Pole Gap",
+  "spin": 0.0,
+  "mass": 1.0,
+  "cam_pos": [
+    6.5,
+    0.4,
+    18.0
+  ],
+  "look_at": [
+    -3.0,
+    -1.0,
+    0.0
+  ],
+  "fov": 100.0,
+  "dt": 0.05,
+  "max_steps": 200,
+  "vmin": 0.0,
+  "vmax": 1.0,
+  "cli": "doctor/render.py --mode min_pole_gap --width 160 --height 90 --dt 0.05 --max-steps 200",
+  "compute_time_s": 5.043902397155762
+}

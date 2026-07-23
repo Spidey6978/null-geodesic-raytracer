@@ -1,0 +1,23 @@
+{
+  "mode": "ergosphere",
+  "label": "Entered Ergosphere (boolean)",
+  "spin": 0.998,
+  "mass": 1.0,
+  "cam_pos": [
+    0.0,
+    8.0,
+    8.0
+  ],
+  "look_at": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "fov": 40.0,
+  "dt": 0.2,
+  "max_steps": 5000,
+  "vmin": null,
+  "vmax": null,
+  "cli": "doctor/render.py --mode ergosphere --cam-pos 0 8 8 --look-at 0 0 0 --spin 0.998 --fov 40",
+  "compute_time_s": 19.625259399414062
+}

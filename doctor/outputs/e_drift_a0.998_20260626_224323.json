@@ -1,0 +1,23 @@
+{
+  "mode": "e_drift",
+  "label": "Energy Drift (|E_check - E|)",
+  "spin": 0.998,
+  "mass": 1.0,
+  "cam_pos": [
+    0.0,
+    0.0,
+    20.0
+  ],
+  "look_at": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "fov": 100.0,
+  "dt": 0.2,
+  "max_steps": 5000,
+  "vmin": 1e-08,
+  "vmax": 0.01,
+  "cli": "doctor/render.py --mode e_drift --dt 0.2 --max-steps 5000 --spin 0.998 --roll 0.0",
+  "compute_time_s": 29.5382297039032
+}

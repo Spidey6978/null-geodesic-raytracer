@@ -1,0 +1,23 @@
+{
+  "mode": "h_drift",
+  "label": "Hamiltonian Drift (Numerical Error Map)",
+  "spin": 0.998,
+  "mass": 1.0,
+  "cam_pos": [
+    6.5,
+    0.4,
+    18.0
+  ],
+  "look_at": [
+    -3.0,
+    -1.0,
+    0.0
+  ],
+  "fov": 100.0,
+  "dt": 0.2,
+  "max_steps": 5000,
+  "vmin": 1e-06,
+  "vmax": 0.01,
+  "cli": "doctor/render.py --mode h_drift --vmax 0.01 --spin 0.998 --dt 0.2 --max-steps 5000 --height 960 --width 540",
+  "compute_time_s": 27.61314630508423
+}
