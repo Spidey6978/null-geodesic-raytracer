@@ -229,26 +229,95 @@ def _blackbody_rgb(T_eff, out, PT, PR, PG, PB):
 
 
 @njit(cache=True)
+def _hash21(x, y):
+    n = np.int64(x * 127.1 + y * 311.7)
+    n = (n << 13) ^ n
+    n = (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff
+    return float(n) / 2147483647.0
+
+
+@njit(cache=True)
+def _smooth_noise2d(x, y):
+    xi = int(np.floor(x))
+    yi = int(np.floor(y))
+    fx = x - float(xi)
+    fy = y - float(yi)
+
+    ux = fx * fx * (3.0 - 2.0 * fx)
+    uy = fy * fy * (3.0 - 2.0 * fy)
+
+    v00 = _hash21(xi, yi)
+    v10 = _hash21(xi + 1, yi)
+    v01 = _hash21(xi, yi + 1)
+    v11 = _hash21(xi + 1, yi + 1)
+
+    v0 = v00 + ux * (v10 - v00)
+    v1 = v01 + ux * (v11 - v01)
+    return v0 + uy * (v1 - v0)
+
+
+@njit(cache=True)
+def _fbm2d(x, y, octaves=3):
+    val = 0.0
+    amp = 0.5
+    freq = 1.0
+    norm = 0.0
+    for _ in range(octaves):
+        val += amp * _smooth_noise2d(x * freq, y * freq)
+        norm += amp
+        amp *= 0.5
+        freq *= 2.0
+    return val / norm if norm > 0.0 else 0.0
+
+
+@njit(cache=True)
+def _kerr_keplerian_omega(r, mass, spin):
+    r_safe = max(r, 1e-5)
+    sqrt_M = np.sqrt(max(mass, 1e-10))
+    denom = r_safe ** 1.5 + spin * sqrt_M
+    if abs(denom) < 1e-10:
+        return 0.0
+    return sqrt_M / denom
+
+
+@njit(cache=True)
 def _disk_colour(hit_radius, hit_phi, hv0, hv1, hv2, weight,
-                 mass, r_isco, rs, out, PT, PR, PG, PB):
+                 mass, r_isco, rs, out, PT, PR, PG, PB,
+                 spin=0.998, frame_time=0.0, noise_scale=0.8, contrast=0.65):
     T_base  = _novikov_thorne(hit_radius, r_isco)
+
+    # ── Procedural Plasma Turbulence & Keplerian Advection ─────────
+    omega = _kerr_keplerian_omega(hit_radius, mass, spin)
+    # Advect angle over time: inner disk rotates faster than outer disk
+    phi_adv = hit_phi - omega * frame_time * 8.0
+
+    x_adv = hit_radius * np.cos(phi_adv) * noise_scale
+    y_adv = hit_radius * np.sin(phi_adv) * noise_scale
+
+    turb = _fbm2d(x_adv, y_adv, 3)
+
+    # Modulate base Novikov-Thorne temperature profile with turbulence
+    T_turb = T_base * (1.0 - contrast + contrast * turb * 2.0)
+    if T_turb < 0.0: T_turb = 0.0
+
     delta   = _doppler_factor(hit_radius, hit_phi, hv0, hv1, hv2, mass, r_isco)
     g_shift = _grav_redshift(hit_radius, r_isco, rs)
 
-    T_eff = T_base * delta * g_shift
+    T_eff = T_turb * delta * g_shift
     if T_eff > 1.0: T_eff = 1.0
     if T_eff < 0.0: T_eff = 0.0
 
     combined = (delta * g_shift) ** 4
     if combined > 16.0: combined = 16.0
 
-    intensity = T_base * (combined ** 0.5) * 0.65 * weight
+    intensity = T_turb * (combined ** 0.5) * 0.65 * weight
 
     _blackbody_rgb(T_eff, out, PT, PR, PG, PB)
     cap = 2.0
     out[0] *= intensity if intensity < cap else cap
     out[1] *= intensity if intensity < cap else cap
     out[2] *= intensity if intensity < cap else cap
+
 
 
 @njit(cache=True)
@@ -363,7 +432,8 @@ def render_pixel_batch(ray_dirs, cam_pos,
                        image, ray_debug, width, height,
                        mass, spin, r_outer_horizon,
                        disk_inner, disk_outer, sim_bounds,
-                       rs, r_isco, hit_w, dt, max_steps):
+                       rs, r_isco, hit_w, dt, max_steps,
+                       frame_time=0.0):
     for idx in prange(height * width):
         y = idx // width
         x = idx  %  width
@@ -399,7 +469,8 @@ def render_pixel_batch(ray_dirs, cam_pos,
                 hv = hit_vels[k]
                 _disk_colour(hit_radii[k], hit_phis[k],
                              hv[0], hv[1], hv[2], w,
-                             mass, r_isco, rs, tmp, PT, PR, PG, PB)
+                             mass, r_isco, rs, tmp, PT, PR, PG, PB,
+                             spin, frame_time)
                 cap = 3.0
                 pixel[0] += tmp[0] if tmp[0] < cap else cap
                 pixel[1] += tmp[1] if tmp[1] < cap else cap
@@ -425,7 +496,8 @@ def render_pixel_batch(ray_dirs, cam_pos,
                 hv = hit_vels[k]
                 _disk_colour(hit_radii[k], hit_phis[k],
                              hv[0], hv[1], hv[2], w,
-                             mass, r_isco, rs, tmp, PT, PR, PG, PB)
+                             mass, r_isco, rs, tmp, PT, PR, PG, PB,
+                             spin, frame_time)
                 cap = 3.0
                 pixel[0] += tmp[0] if tmp[0] < cap else cap
                 pixel[1] += tmp[1] if tmp[1] < cap else cap
@@ -490,6 +562,8 @@ def render():
                         help="Output filename (auto-generated if omitted)")
     parser.add_argument("--show", action="store_true",
                         help="Show image interactively after saving")
+    parser.add_argument("--time", type=float, default=0.0,
+                        help="Frame timestamp for plasma advection & Keplerian rotation")
 
     # Render mode shortcut
     parser.add_argument("--mode", type=str, default=None,
@@ -522,7 +596,7 @@ def render():
     CAM_POS   = np.array(args.cam_pos, dtype=np.float64)
     LOOK_AT   = args.look_at
 
-    print(f"📷  {WIDTH}×{HEIGHT}  dt={DT}  max_steps={MAX_STEPS}")
+    print(f"📷  {WIDTH}×{HEIGHT}  dt={DT}  max_steps={MAX_STEPS}  t={args.time:.2f}")
     print(f"    spin={SPIN:.4f}  M={MASS:.4f}  R_horizon={R_OUTER_HORIZON:.4f}")
     print(f"    R_ISCO={DISK_INNER:.4f}  disk_outer={DISK_OUTER:.4f}")
     print(f"    cam={list(CAM_POS)}  look_at={LOOK_AT}")
@@ -546,7 +620,8 @@ def render():
         MASS, SPIN, R_OUTER_HORIZON,
         DISK_INNER, DISK_OUTER, SIM_BOUNDS,
         RS, DISK_INNER, _HIT_W,
-        DT, MAX_STEPS
+        DT, MAX_STEPS,
+        args.time
     )
     print("✅  JIT warm. Rendering …")
 
@@ -559,7 +634,8 @@ def render():
         MASS, SPIN, R_OUTER_HORIZON,
         DISK_INNER, DISK_OUTER, SIM_BOUNDS,
         RS, DISK_INNER, _HIT_W,
-        DT, MAX_STEPS
+        DT, MAX_STEPS,
+        args.time
     )
     elapsed = time.time() - t0
     print(f"✅  Done in {elapsed:.1f}s")

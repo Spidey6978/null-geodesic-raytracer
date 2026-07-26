@@ -265,10 +265,12 @@ def integrate_path(start_pos, start_vel, dt, max_steps,
         theta_factor = sin2 / (sin2 + 0.05)
         pole_factor = gap / (gap + 0.05)
 
-        # After the r_factor/theta_factor calculation, add:
         far_factor = 1.0 + 3.0 * max(r / (sim_bounds * 0.1) - 1.0, 0.0)
         far_factor = far_factor if far_factor < 4.0 else 4.0
-        dt_local = dt * max(r_factor * theta_factor, 0.01) * far_factor
+
+        dphi_scale = abs(L) / (sin2 + 1e-6)
+        polar_cap = 0.15 / dphi_scale if dphi_scale > 0.15 else 1.0
+        dt_local = dt * min(max(r_factor * theta_factor, 1e-4), polar_cap) * far_factor
         dt_half   = dt_local * 0.5
         
         old_r, old_theta, old_phi = r, theta, phi
@@ -439,10 +441,12 @@ def integrate_path_lean(start_pos, start_vel, dt, max_steps,
         theta_factor = sin2 / (sin2 + 0.05)
         pole_factor = gap / (gap + 0.05)
 
-        # After the r_factor/theta_factor calculation, add:
         far_factor = 1.0 + 3.0 * max(r / (sim_bounds * 0.1) - 1.0, 0.0)
         far_factor = far_factor if far_factor < 4.0 else 4.0
-        dt_local = dt * max(r_factor * theta_factor, 0.01) * far_factor        
+
+        dphi_scale = abs(L) / (sin2 + 1e-6)
+        polar_cap = 0.15 / dphi_scale if dphi_scale > 0.15 else 1.0
+        dt_local = dt * min(max(r_factor * theta_factor, 1e-4), polar_cap) * far_factor
         dt_half   = dt_local * 0.5
         
         old_r, old_theta, old_phi = r, theta, phi
@@ -620,7 +624,9 @@ def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_
         theta_factor = sin2 / (sin2 + 0.05)
         pole_factor = gap / (gap + 0.05)
 
-        dt_local  = dt * max(r_factor * theta_factor * pole_factor, 0.01)
+        dphi_scale = abs(L) / (sin2 + 1e-6)
+        polar_cap = 0.15 / dphi_scale if dphi_scale > 0.15 else 1.0
+        dt_local  = dt * min(max(r_factor * theta_factor * pole_factor, 1e-4), polar_cap)
         dt_half   = dt_local * 0.5
 
         if r < capture_radius:
