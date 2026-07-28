@@ -108,8 +108,9 @@ def _compute_conserved_quantities(r, theta, dot_r, dot_theta, dot_phi, a, M):
     discriminant = B*B - 4.0*A*C
     if discriminant < 0.0: discriminant = 0.0
         
-    t_root1 = (-B + np.sqrt(discriminant)) / (2.0 * A)
-    t_root2 = (-B - np.sqrt(discriminant)) / (2.0 * A)
+    A_safe = A if abs(A) > 1e-12 else 1e-12
+    t_root1 = (-B + np.sqrt(discriminant)) / (2.0 * A_safe)
+    t_root2 = (-B - np.sqrt(discriminant)) / (2.0 * A_safe)
     dot_t = max(t_root1, t_root2)
     
     p_t = g_tt * dot_t + g_tphi * dot_phi

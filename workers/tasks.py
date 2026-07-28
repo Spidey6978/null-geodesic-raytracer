@@ -1,12 +1,51 @@
-import time
-from .celery_app import celery_app
+"""
+Module: workers.tasks
+Asynchronous background tasks for Celery worker nodes.
+"""
 
-@celery_app.task
-def test_redis_connection():
+import time
+from pathlib import Path
+from workers.celery_app import celery_app
+from core.config import RenderConfig, JobStatus
+from api.engine import render_frame_from_config
+
+
+@celery_app.task(bind=True)
+def test_redis_connection(self):
+    """A sanity ping task to verify Redis and worker connectivity."""
+    print(" Task received! Ping from Python to Docker/Redis...")
+    time.sleep(1)
+    return "✅ Connection Successful: Python <-> Redis <-> Docker Worker"
+
+
+@celery_app.task(bind=True)
+def render_image_task(self, job_id: str, config_dict: dict):
     """
-    A dummy task to verify the pipeline works.
-    It waits 3 seconds (simulating math) and returns a success message.
+    Executes background black hole ray tracing render job.
+    Updates progress state and saves output PNG artifact.
     """
-    print(" Task received! Ping from Python to Docker...")
-    time.sleep(3) # Simulate a heavy calculation
-    return "✅ Connection Successful: Python <-> Redis <-> Docker"
+    try:
+        self.update_state(state="PROCESSING", meta={"progress_pct": 10.0, "status": JobStatus.PROCESSING})
+
+        config = RenderConfig(**config_dict)
+        output_dir = Path(__file__).resolve().parent.parent / "output" / "renders"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        out_filepath = str(output_dir / f"{job_id}.png")
+
+        self.update_state(state="PROCESSING", meta={"progress_pct": 30.0, "status": JobStatus.PROCESSING})
+
+        meta = render_frame_from_config(config, out_filepath)
+
+        self.update_state(state="SUCCESS", meta={"progress_pct": 100.0, "status": JobStatus.COMPLETED})
+
+        return {
+            "job_id": job_id,
+            "status": JobStatus.COMPLETED,
+            "progress_pct": 100.0,
+            "render_time_s": meta["render_time_s"],
+            "result_file": out_filepath,
+            "result_url": f"/output/renders/{job_id}.png"
+        }
+    except Exception as e:
+        self.update_state(state="FAILURE", meta={"progress_pct": 0.0, "status": JobStatus.FAILED, "error": str(e)})
+        raise e

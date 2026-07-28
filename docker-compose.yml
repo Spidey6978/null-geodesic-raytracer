@@ -1,19 +1,41 @@
 version: '3.8'
 
 services:
-  # --- The Message Broker ---
-  # Celery uses this to store task tickets ("Calculate this black hole frame")
   redis:
     image: redis:7-alpine
     container_name: blackhole_redis
     ports:
-      - "6379:6379"  # Maps localhost:6379 -> Container:6379
+      - "6379:6379"
     volumes:
-      - redis_data:/data  # Persist data so jobs aren't lost on restart
+      - redis_data:/data
     restart: always
 
-  # --- (Optional) The Dashboard ---
-  # A visual interface to see your Redis queues
+  web:
+    build: .
+    container_name: blackhole_api
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+
+  worker:
+    build: .
+    container_name: blackhole_worker
+    command: celery -A workers.celery_app worker --loglevel=info -c 4
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+
   redis-commander:
     image: rediscommander/redis-commander:latest
     container_name: redis_gui
