@@ -131,3 +131,80 @@ def render_frame_from_config(config: RenderConfig, out_filepath: str) -> dict:
         json.dump(meta, f, indent=2)
 
     return meta
+
+
+def render_animation_sequence(anim_config: "AnimationConfig", out_video_path: str, progress_callback=None) -> dict:
+    """
+    Renders a multi-frame camera flyby animation sequence along a 3D spline trajectory.
+    Compiles individual PNG frames into an MP4 video or image sequence.
+    """
+    from core.camera import generate_spline_camera_path
+    from core.config import AnimationConfig, CameraConfig
+
+    out_video_file = Path(out_video_path)
+    frames_dir = out_video_file.parent / f"{out_video_file.stem}_frames"
+    frames_dir.mkdir(parents=True, exist_ok=True)
+
+    camera_path = generate_spline_camera_path(
+        waypoints=anim_config.waypoints,
+        num_frames=anim_config.num_frames,
+        look_at=anim_config.look_at,
+        fov=anim_config.fov,
+        roll=anim_config.roll
+    )
+
+    frame_files = []
+    total_time = 0.0
+
+    for i, frame_spec in enumerate(camera_path):
+        frame_time = i / float(anim_config.fps)
+        frame_cfg = RenderConfig(
+            black_hole=anim_config.black_hole,
+            camera=CameraConfig(
+                cam_pos=frame_spec["cam_pos"],
+                look_at=frame_spec["look_at"],
+                fov=frame_spec["fov"],
+                roll=frame_spec["roll"]
+            ),
+            dt=anim_config.dt,
+            max_steps=anim_config.max_steps,
+            mode=anim_config.mode,
+            frame_time=frame_time
+        )
+
+        frame_file = str(frames_dir / f"frame_{i:04d}.png")
+        meta = render_frame_from_config(frame_cfg, frame_file)
+        frame_files.append(frame_file)
+        total_time += meta["render_time_s"]
+
+        if progress_callback:
+            pct = ((i + 1) / anim_config.num_frames) * 100.0
+            progress_callback(i + 1, anim_config.num_frames, pct)
+
+    # Try compiling MP4 video using imageio or matplotlib
+    video_compiled = False
+    try:
+        import imageio
+        writer = imageio.get_writer(str(out_video_file), fps=anim_config.fps)
+        for ff in frame_files:
+            writer.append_data(imageio.v2.imread(ff))
+        writer.close()
+        video_compiled = True
+    except Exception:
+        video_compiled = False
+
+    meta = {
+        "video_file": str(out_video_file) if video_compiled else None,
+        "frames_dir": str(frames_dir),
+        "num_frames": anim_config.num_frames,
+        "fps": anim_config.fps,
+        "total_render_time_s": total_time,
+        "video_compiled": video_compiled,
+        "frames": frame_files
+    }
+
+    json_path = out_video_file.with_suffix(".json")
+    with open(json_path, "w") as f:
+        json.dump(meta, f, indent=2)
+
+    return meta

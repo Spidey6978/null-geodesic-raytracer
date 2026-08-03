@@ -60,3 +60,19 @@ class RenderJobResponse(BaseModel):
     render_time_s: Optional[float] = None
     result_url: Optional[str] = None
     error_message: Optional[str] = None
+
+
+class AnimationConfig(BaseModel):
+    black_hole: BlackHoleConfig = Field(default_factory=BlackHoleConfig)
+    waypoints: List[List[float]] = Field(
+        default_factory=lambda: [[0.0, 5.0, 15.0], [5.0, 2.0, 10.0], [10.0, 0.0, 5.0]],
+        description="Array of 3D camera waypoints [[X1,Y1,Z1], [X2,Y2,Z2], ...]"
+    )
+    look_at: List[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0], description="Target look-at vector")
+    fov: float = Field(default=100.0, ge=10.0, le=170.0, description="Field of view in degrees")
+    roll: float = Field(default=0.0, description="Camera roll angle in degrees")
+    num_frames: int = Field(default=30, ge=2, le=300, description="Total animation frames")
+    fps: int = Field(default=30, ge=1, le=60, description="Frames per second")
+    dt: Optional[float] = Field(default=None, gt=0.001, le=1.0)
+    max_steps: Optional[int] = Field(default=None, ge=100, le=20000)
+    mode: Optional[RenderMode] = Field(default=RenderMode.PREVIEW)
