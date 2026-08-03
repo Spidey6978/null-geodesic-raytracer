@@ -55,9 +55,13 @@ def list_presets():
 
 
 @router.post("/renders/image", response_model=RenderJobSubmissionResponse)
-def submit_render_job(config: RenderConfig):
+def submit_render_job(config: RenderConfig, background_tasks: BackgroundTasks):
     job_id = f"job_{uuid.uuid4().hex[:10]}"
     config_dict = config.model_dump()
+
+    output_dir = Path(__file__).resolve().parent.parent / "output" / "renders"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    out_filepath = str(output_dir / f"{job_id}.png")
 
     try:
         # Enqueue task in Celery
@@ -65,9 +69,10 @@ def submit_render_job(config: RenderConfig):
         status = JobStatus.QUEUED
         msg = "Job submitted successfully to background worker queue."
     except Exception as e:
-        # Fallback to local thread execution if Celery worker is offline
+        # Fallback to local async thread execution if Celery worker/Redis is offline
         status = JobStatus.PROCESSING
-        msg = f"Worker queue unavailable ({str(e)}). Processing locally."
+        msg = f"Worker queue unavailable ({str(e)}). Processing locally via background task."
+        background_tasks.add_task(render_frame_from_config, config, out_filepath)
 
     return RenderJobSubmissionResponse(
         job_id=job_id,
@@ -116,3 +121,14 @@ def get_job_image(job_id: str):
         raise HTTPException(status_code=404, detail="Render result image not found or still processing.")
 
     return FileResponse(str(file_path), media_type="image/png")
+
+
+@router.get("/jobs/{job_id}/metadata")
+def get_job_metadata(job_id: str):
+    output_dir = Path(__file__).resolve().parent.parent / "output" / "renders"
+    json_path = output_dir / f"{job_id}.json"
+
+    if not json_path.exists():
+        raise HTTPException(status_code=404, detail="Render metadata not found or still processing.")
+
+    return FileResponse(str(json_path), media_type="application/json")

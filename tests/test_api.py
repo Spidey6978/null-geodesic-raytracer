@@ -51,3 +51,19 @@ def test_submit_render_job_schema():
     data = response.json()
     assert "job_id" in data
     assert data["status"] in ["QUEUED", "PROCESSING"]
+
+
+def test_invalid_config_validation_bounds():
+    payload = {
+        "config": {
+            "black_hole": {"mass": -5.0},  # mass must be > 0
+            "camera": {"fov": 250.0}       # fov must be <= 170
+        }
+    }
+    response = client.post("/api/v1/renders/image", json=payload)
+    assert response.status_code == 422  # Unprocessable Entity (Pydantic validation error)
+
+
+def test_job_metadata_404():
+    response = client.get("/api/v1/jobs/non_existent_job_123/metadata")
+    assert response.status_code == 404
