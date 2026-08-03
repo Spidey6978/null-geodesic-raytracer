@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 
-from core.config import RenderConfig, JobStatus
+from core.config import RenderConfig, AnimationConfig, JobStatus
 from scripts.cam_presets import CAMERA_PRESETS
 from api.schemas import (
     HealthCheckResponse,
@@ -19,8 +19,8 @@ from api.schemas import (
     RenderJobStatusResponse,
 )
 from workers.celery_app import celery_app
-from workers.tasks import render_image_task, test_redis_connection
-from api.engine import render_frame_from_config
+from workers.tasks import render_image_task, render_animation_task, test_redis_connection
+from api.engine import render_frame_from_config, render_animation_sequence
 
 router = APIRouter(prefix="/api/v1", tags=["Render Service"])
 
@@ -129,6 +129,47 @@ def get_job_metadata(job_id: str):
     json_path = output_dir / f"{job_id}.json"
 
     if not json_path.exists():
+        anim_dir = Path(__file__).resolve().parent.parent / "output" / "animations"
+        json_path = anim_dir / f"{job_id}.json"
+
+    if not json_path.exists():
         raise HTTPException(status_code=404, detail="Render metadata not found or still processing.")
 
     return FileResponse(str(json_path), media_type="application/json")
+
+
+@router.post("/renders/animation", response_model=RenderJobSubmissionResponse)
+def submit_animation_job(config: AnimationConfig, background_tasks: BackgroundTasks):
+    job_id = f"anim_{uuid.uuid4().hex[:10]}"
+    config_dict = config.model_dump()
+
+    output_dir = Path(__file__).resolve().parent.parent / "output" / "animations"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    out_video_path = str(output_dir / f"{job_id}.mp4")
+
+    try:
+        render_animation_task.apply_async(args=[job_id, config_dict], task_id=job_id)
+        status = JobStatus.QUEUED
+        msg = "Animation job submitted successfully to background worker queue."
+    except Exception as e:
+        status = JobStatus.PROCESSING
+        msg = f"Worker queue unavailable ({str(e)}). Processing animation locally."
+        background_tasks.add_task(render_animation_sequence, config, out_video_path)
+
+    return RenderJobSubmissionResponse(
+        job_id=job_id,
+        status=status,
+        message=msg,
+        status_url=f"/api/v1/jobs/{job_id}"
+    )
+
+
+@router.get("/jobs/{job_id}/video")
+def get_job_video(job_id: str):
+    output_dir = Path(__file__).resolve().parent.parent / "output" / "animations"
+    file_path = output_dir / f"{job_id}.mp4"
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Render result video not found or still processing.")
+
+    return FileResponse(str(file_path), media_type="video/mp4")

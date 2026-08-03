@@ -55,10 +55,8 @@ def test_submit_render_job_schema():
 
 def test_invalid_config_validation_bounds():
     payload = {
-        "config": {
-            "black_hole": {"mass": -5.0},  # mass must be > 0
-            "camera": {"fov": 250.0}       # fov must be <= 170
-        }
+        "black_hole": {"mass": -5.0},  # mass must be > 0
+        "camera": {"fov": 250.0}       # fov must be <= 170
     }
     response = client.post("/api/v1/renders/image", json=payload)
     assert response.status_code == 422  # Unprocessable Entity (Pydantic validation error)
@@ -67,3 +65,19 @@ def test_invalid_config_validation_bounds():
 def test_job_metadata_404():
     response = client.get("/api/v1/jobs/non_existent_job_123/metadata")
     assert response.status_code == 404
+
+
+def test_submit_animation_job_endpoint():
+    payload = {
+        "black_hole": {"mass": 1.0, "spin": 0.998},
+        "waypoints": [[0.0, 5.0, 15.0], [5.0, 2.0, 10.0]],
+        "num_frames": 3,
+        "fps": 10,
+        "mode": "preview"
+    }
+    response = client.post("/api/v1/renders/animation", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "job_id" in data
+    assert data["job_id"].startswith("anim_")
+    assert data["status"] in ["QUEUED", "PROCESSING"]
