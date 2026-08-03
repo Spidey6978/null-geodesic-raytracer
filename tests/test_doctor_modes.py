@@ -11,6 +11,7 @@ from core.indices import (
     IDX_TERM_REASON,
     IDX_MIN_POLE_GAP,
     IDX_STEPS_IN_ERGO,
+    IDX_ENTERED_ERGO,
     IDX_MAX_DE,
     IDX_MAX_DL,
     IDX_ORBIT_COUNT_SIGNED,
@@ -61,9 +62,9 @@ def test_min_pole_gap_mode_reads_raw_stats_index():
 
 def test_ergosphere_mode_reads_raw_steps_index():
     stats = np.zeros(25, dtype=np.float64)
-    stats[IDX_STEPS_IN_ERGO] = 12.0
+    stats[IDX_ENTERED_ERGO] = 1.0
 
-    assert ergosphere_map.get_value_from_raw(stats) == 12.0
+    assert ergosphere_map.get_value_from_raw(stats) == 1.0
 
 
 def test_drift_and_orbit_modes_read_their_indices():

@@ -206,8 +206,9 @@ def _probe_horizon_ratios(cam_pos, ray_dir, dt, max_steps, mass, a,
     px, py, pz = cam_pos
     vx, vy, vz = ray_dir
     speed = (vx**2 + vy**2 + vz**2)**0.5
-    if speed > 0:
-        vx /= speed; vy /= speed; vz /= speed
+    if speed <= 0:
+        return 0.0, 0.0
+    vx /= speed; vy /= speed; vz /= speed
 
     r, theta, phi, dr, dth, dph = _cartesian_to_bl(px, py, pz, vx, vy, vz, a)
     E, L, Q, pr, ptheta = _compute_conserved_quantities(r, theta, dr, dth, dph, a, mass)
