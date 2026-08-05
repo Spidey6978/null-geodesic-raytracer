@@ -89,12 +89,12 @@ The appearance changes dramatically with observer position, inclination, spin, f
 <img src="docs/images/kerr_frame_dragging.png" width="100%" alt="Kerr Frame Dragging">
 </td>
 <td width="50%">
-<img src="docs/images/plasma_t2.png" width="100%" alt="Plasma Motion">
+<img src="docs/images/behind_the_disk.png" width="100%" alt="Behind the Disk">
 </td>
 </tr>
 <tr>
 <td align="center"><i>Close Observer — Strong Equatorial Frame Dragging</i></td>
-<td align="center"><i>Advected Plasma Turbulence — Multi-Octave Noise (t = 2.0)</i></td>
+<td align="center"><i>Behind-the-Disk View — Secondary Lensed Accretion Arc</i></td>
 </tr>
 </table>
 
@@ -180,10 +180,10 @@ with inner regions orbiting more rapidly than outer regions.
 The renderer can account for relativistic frequency shifts and uses a thermal emission model to convert disk intersections into observed radiance.
 
 <p align="center">
-  <img src="docs/images/hero.png" width="90%" alt="Accretion Disk Lensing Structure">
+  <img src="docs/images/accretion_disk_edge_on.png" width="90%" alt="Edge-On Accretion Disk Lensing Structure">
 </p>
 <p align="center">
-  <i>Strongly inclined Kerr accretion disk render pointing out relativistic Doppler asymmetry (left side brightened, right side dimmed) and lensed secondary disk arches passing under the horizon pole.</i>
+  <i>Edge-on 1080p accretion disk render demonstrating extreme Doppler boosting asymmetry (left side brightened, right side dimmed) and lensed secondary disk arches passing under the horizon pole.</i>
 </p>
 
 ### Celestial background
@@ -195,10 +195,10 @@ This may be a procedural star field or an equirectangular sky texture. Because t
 Stars are therefore not warped using a post-processing displacement map. Their apparent positions are determined by the photon trajectories reaching the observer.
 
 <p align="center">
-  <img src="docs/images/skybox_lensing.png" width="90%" alt="Celestial Background Lensing">
+  <img src="docs/images/celestial_lensing_showcase.png" width="90%" alt="Celestial Background Lensing Showcase">
 </p>
 <p align="center">
-  <i>Star-heavy celestial background lensing render showing stars and deep-space nebulae visibly stretching and duplicating around the photon sphere critical curve.</i>
+  <i>Celestial background lensing showcase: High-resolution production render displaying background stars and nebulae stretching into Einstein arcs around the critical curve.</i>
 </p>
 
 ### Image formation
@@ -239,10 +239,10 @@ Doctor is intended to answer:
 > *Why did the renderer produce that pixel?*
 
 <p align="center">
-  <img src="docs/images/doctor_max_dphi_after.png" width="85%" alt="Doctor Diagnostic Termination Map">
+  <img src="docs/images/doctor_diagnostic_map.png" width="85%" alt="Doctor Diagnostic Termination Map">
 </p>
 <p align="center">
-  <i>Doctor Diagnostic Map: Plotting maximum single-step azimuthal displacement |dφ| across 518,400 photon trajectories to verify Hamiltonian conservation and step stability.</i>
+  <i>Doctor Diagnostic Map: Spatial tensor data plotting maximum single-step azimuthal displacement |dφ| across 518,400 photon trajectories to verify Hamiltonian conservation.</i>
 </p>
 
 This became particularly useful while investigating small groups of anomalous pixels near the shadow boundary and coordinate-sensitive trajectories near the polar axis.
@@ -303,10 +303,10 @@ When Blender requests a frame, the integration layer reads the evaluated camera 
 This gives Blender's animation workflow without pretending that the black hole itself is a conventional polygonal object.
 
 <p align="center">
-  <img src="docs/images/kerr_high_inclination.png" width="90%" alt="Blender Integration Render">
+  <img src="docs/images/blender_over_the_shoulder.png" width="90%" alt="Blender Over the Shoulder Render">
 </p>
 <p align="center">
-  <i>Blender Integration: Evaluated 3D camera trajectory keyframed inside Blender and passed directly to KERR-TRACE null-geodesic engine.</i>
+  <i>Blender Integration: Evaluated 3D over-the-shoulder camera trajectory keyframed inside Blender and passed directly to KERR-TRACE null-geodesic engine.</i>
 </p>
 
 A black-hole shadow is not a solid surface that can be represented faithfully by a mesh. The accretion flow is likewise an emitting distribution of matter rather than a rigid opaque disk.
@@ -1084,10 +1084,10 @@ $$
 This is responsible for much of the strong brightness asymmetry visible in highly inclined renders of a rapidly rotating disk.
 
 <p align="center">
-  <img src="docs/images/hero.png" width="90%" alt="Relativistic Frequency Shift Asymmetry">
+  <img src="docs/images/eht_analog_frequency_shift.png" width="90%" alt="Relativistic Frequency Shift Asymmetry EHT Analog">
 </p>
 <p align="center">
-  <i>Relativistic Frequency Shift: Render illustrating strong Doppler boosting on the approaching side (left, brightened) vs receding side (right, dimmed).</i>
+  <i>Relativistic Frequency Shift (EHT Analog Render): High-resolution render illustrating strong Doppler boosting on the approaching side (left, brightened) vs receding side (right, dimmed).</i>
 </p>
 
 The approaching side can be substantially Doppler boosted while the receding side is dimmed and redshifted.
@@ -1225,7 +1225,7 @@ Importantly, the interpretation of this artifact is numerical and coordinate-dep
   <img src="docs/images/doctor_max_dphi_before.png" width="80%" alt="Polar-Axis Needle Beam Artifact">
 </p>
 <p align="center">
-  <i>The Polar-Axis Artifact: Uncapped RK4 step integration near θ → 0 causing a spurious vertical needle streak across the polar axis.</i>
+  <i>The Polar-Axis Artifact: Doctor diagnostic map showing uncapped RK4 step integration near θ → 0 causing a spurious vertical needle streak across the polar axis.</i>
 </p>
 
 A coordinate system without the same polar/horizon behaviour, such as Kerr-Schild coordinates, provides an important future comparison.
@@ -1319,7 +1319,7 @@ The useful question is instead:
 Doctor exists partly to make those questions visible.
 
 <p align="center">
-  <img src="docs/images/doctor_max_dphi_after.png" width="85%" alt="Conservation & Doctor Diagnostics Data Map">
+  <img src="docs/images/doctor_diagnostic_map.png" width="85%" alt="Conservation & Doctor Diagnostics Data Map">
 </p>
 <p align="center">
   <i>Doctor Conservation & Step Convergence Map: Spatial tensor data tracking single-step stability and energy drift across the screen plane.</i>
