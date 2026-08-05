@@ -86,6 +86,12 @@ def render_frame_from_config(config: RenderConfig, out_filepath: str) -> dict:
     image = np.zeros((height, width, 3), dtype=np.float64)
     ray_debug = np.zeros((height, width), dtype=np.uint8)
 
+    from core.skybox import load_skybox_texture
+
+    skybox_img, sky_w, sky_h = None, 0, 0
+    if config.skybox_path:
+        skybox_img, sky_w, sky_h = load_skybox_texture(config.skybox_path)
+
     t0 = time.time()
     render_pixel_batch(
         ray_dirs, cam_pos,
@@ -95,7 +101,8 @@ def render_frame_from_config(config: RenderConfig, out_filepath: str) -> dict:
         mass, spin, r_outer_horizon,
         disk_inner, disk_outer, SIM_BOUNDS,
         rs, r_isco, _HIT_W, dt, max_steps,
-        frame_time
+        frame_time,
+        skybox_img, sky_w, sky_h
     )
     elapsed = time.time() - t0
 

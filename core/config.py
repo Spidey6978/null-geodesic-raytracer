@@ -46,6 +46,7 @@ class RenderConfig(BaseModel):
     max_steps: Optional[int] = Field(default=None, ge=100, le=20000, description="Maximum steps per photon ray")
     mode: Optional[RenderMode] = Field(default=RenderMode.QUALITY, description="Quality preset mode")
     frame_time: float = Field(default=0.0, description="Frame timestamp for plasma rotation and advection")
+    skybox_path: Optional[str] = Field(default=None, description="Path to background skybox/HDRI image file")
 
 
 class RenderJobRequest(BaseModel):

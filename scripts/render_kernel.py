@@ -423,6 +423,8 @@ def aces_tonemap(x):
     return np.clip((x*(a*x+b)) / (x*(c*x+d)+e), 0.0, 1.0)
 
 
+from core.skybox import sample_skybox_equirectangular
+
 # ── Parallel pixel batch ──────────────────────────────────────────────────────
 
 @njit(parallel=True, cache=True)
@@ -433,7 +435,8 @@ def render_pixel_batch(ray_dirs, cam_pos,
                        mass, spin, r_outer_horizon,
                        disk_inner, disk_outer, sim_bounds,
                        rs, r_isco, hit_w, dt, max_steps,
-                       frame_time=0.0):
+                       frame_time=0.0,
+                       skybox_img=None, sky_w=0, sky_h=0):
     for idx in prange(height * width):
         y = idx // width
         x = idx  %  width
@@ -463,7 +466,6 @@ def render_pixel_batch(ray_dirs, cam_pos,
 
         if captured:
             # ── Event horizon — black ─────────────────────────────────────
-            # Still render any disk hits that occurred before capture
             for k in range(int(hit_count)):
                 w  = hit_w[k] if k < 4 else 0.01
                 hv = hit_vels[k]
@@ -478,18 +480,12 @@ def render_pixel_batch(ray_dirs, cam_pos,
 
         elif term_reason == 5:
             # ── Photon-sphere trapped — near-black, no star sampling ──────
-            # These rays orbit the photon sphere until budget exhaustion.
-            # They are NOT escaped — sampling the star field from their
-            # last velocity direction produces spurious stars in the shadow.
-            # Render as a very faint reddish tint (unresolved photon ring
-            # contribution) rather than pure black or full star brightness.
             pixel[0] = 0.008
             pixel[1] = 0.002
             pixel[2] = 0.002
 
         else:
             # ── Genuine escape (reason 3) or far-out budget (reason 4) ───
-            # Disk emission
             transmission = 1.0
             for k in range(int(hit_count)):
                 w  = hit_w[k] if k < 4 else 0.01
@@ -503,15 +499,20 @@ def render_pixel_batch(ray_dirs, cam_pos,
                 pixel[1] += tmp[1] if tmp[1] < cap else cap
                 pixel[2] += tmp[2] if tmp[2] < cap else cap
 
-                # Optically thick attenuation
                 transmission *= 0.40
 
-            # Star field — only sampled for genuine escaped rays
-            _star_colour(final_dir, star_dirs, star_bright, star_cos_radii,
-                         star_colour, star_pal, tmp)
-            pixel[0] += tmp[0] * transmission
-            pixel[1] += tmp[1] * transmission
-            pixel[2] += tmp[2] * transmission
+            # Skybox / Star field — only sampled for genuine escaped rays
+            if sky_w > 0 and skybox_img is not None:
+                sky_rgb = sample_skybox_equirectangular(final_dir[0], final_dir[1], final_dir[2], skybox_img, sky_w, sky_h)
+                pixel[0] += sky_rgb[0] * transmission
+                pixel[1] += sky_rgb[1] * transmission
+                pixel[2] += sky_rgb[2] * transmission
+            else:
+                _star_colour(final_dir, star_dirs, star_bright, star_cos_radii,
+                             star_colour, star_pal, tmp)
+                pixel[0] += tmp[0] * transmission
+                pixel[1] += tmp[1] * transmission
+                pixel[2] += tmp[2] * transmission
 
         image[y, x, 0] = pixel[0]
         image[y, x, 1] = pixel[1]
