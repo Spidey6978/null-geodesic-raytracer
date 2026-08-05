@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from api.routes import router
+from api.rate_limiter import RateLimitMiddleware
 
 app = FastAPI(
     title="Null Geodesic Raytracer API",
@@ -18,6 +19,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+app.add_middleware(RateLimitMiddleware, max_requests=20, window_seconds=60)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
