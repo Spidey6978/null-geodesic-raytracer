@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KERR-TRACE v1.0 — General Relativity Raytracer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div id="app-root">
+        <!-- Minimal Top Brand Header -->
+        <header id="top-bar">
+            <span class="brand-title">KERR-TRACE <span class="brand-version">v1.0</span></span>
+            <div id="connection-status" class="status-online">● Online</div>
+        </header>
+
+        <!-- Sacred Edge-to-Edge Render Viewport -->
+        <main id="viewport-container">
+            <div id="canvas-wrapper">
+                <img id="render-viewport-img" src="/output/production_polar_fixed_hero.png" alt="Kerr Black Hole Viewport" />
+                <div id="viewport-placeholder" class="hidden">
+                    <span class="placeholder-icon">🌌</span>
+                    <p>No active render. Click <strong>Render Image</strong> to run raytracing.</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Lightroom-Style Compact Slide-Up Bottom Dock -->
+        <footer id="bottom-dock">
+            <!-- Expandable Parameter Drawer -->
+            <div id="param-drawer" class="drawer-expanded">
+                <!-- Tab Panel: Spacetime -->
+                <div id="tab-panel-spacetime" class="tab-panel active">
+                    <div class="param-group">
+                        <span class="param-label">Spin (a)</span>
+                        <span class="param-value" id="val-spin">0.998</span>
+                        <input type="range" class="param-slider" id="slider-spin" min="0.0" max="0.998" step="0.001" value="0.998">
+                    </div>
+                    <div class="param-group">
+                        <span class="param-label">Mass (M)</span>
+                        <span class="param-value" id="val-mass">1 M☉</span>
+                        <input type="range" class="param-slider" id="slider-mass" min="0.1" max="10.0" step="0.1" value="1.0">
+                    </div>
+                    <div class="param-group">
+                        <span class="param-label">Inclination</span>
+                        <span class="param-value" id="val-inclination">70°</span>
+                        <input type="range" class="param-slider" id="slider-inclination" min="0" max="90" step="1" value="70">
+                    </div>
+                </div>
+
+                <!-- Tab Panel: Observer -->
+                <div id="tab-panel-observer" class="tab-panel">
+                    <div class="param-group">
+                        <span class="param-label">Preset</span>
+                        <select class="param-select" id="select-preset">
+                            <option value="hero" selected>Hero (Interstellar)</option>
+                            <option value="luminet_1979">Luminet (1979)</option>
+                            <option value="high_inclination">High Inclination</option>
+                            <option value="frame_dragging">Frame Dragging</option>
+                        </select>
+                    </div>
+                    <div class="param-group">
+                        <span class="param-label">FOV</span>
+                        <span class="param-value" id="val-fov">100°</span>
+                        <input type="range" class="param-slider" id="slider-fov" min="20" max="150" step="1" value="100">
+                    </div>
+                    <div class="param-group">
+                        <span class="param-label">Quality</span>
+                        <select class="param-select" id="select-quality">
+                            <option value="preview">Preview (400p)</option>
+                            <option value="quality" selected>Quality (540p)</option>
+                            <option value="production">Production (1080p)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Tab Panel: Accretion -->
+                <div id="tab-panel-accretion" class="tab-panel">
+                    <div class="param-group">
+                        <span class="param-label">Disk Outer</span>
+                        <span class="param-value" id="val-disk-outer">36 r_s</span>
+                        <input type="range" class="param-slider" id="slider-disk-outer" min="10" max="100" step="1" value="36">
+                    </div>
+                    <div class="param-group">
+                        <span class="param-label">Skybox</span>
+                        <select class="param-select" id="select-skybox">
+                            <option value="procedural" selected>Procedural Galaxy</option>
+                            <option value="none">Deep Black</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Tab Panel: Diagnostics -->
+                <div id="tab-panel-diagnostics" class="tab-panel">
+                    <div class="param-stat">
+                        <span class="stat-label">Render Time:</span>
+                        <span class="stat-value" id="stat-render-time">4.8s</span>
+                    </div>
+                    <div class="param-stat">
+                        <span class="stat-label">ISCO Radius:</span>
+                        <span class="stat-value" id="stat-isco">1.237 M</span>
+                    </div>
+                    <div class="param-stat">
+                        <span class="stat-label">Ray Escape:</span>
+                        <span class="stat-value" id="stat-escape">59.8%</span>
+                    </div>
+                </div>
+
+                <!-- Tab Panel: Export -->
+                <div id="tab-panel-export" class="tab-panel">
+                    <button class="btn-secondary" id="btn-download-png">⬇️ Download PNG</button>
+                    <button class="btn-secondary" id="btn-copy-json">📋 Copy Metadata JSON</button>
+                </div>
+            </div>
+
+            <!-- Tab Navigation Bar & Hero Button -->
+            <div id="dock-bar">
+                <nav id="tab-nav">
+                    <button class="tab-btn active" data-tab="spacetime">Spacetime</button>
+                    <button class="tab-btn" data-tab="observer">Observer</button>
+                    <button class="tab-btn" data-tab="accretion">Accretion</button>
+                    <button class="tab-btn" data-tab="diagnostics">Diagnostics</button>
+                    <button class="tab-btn" data-tab="export">Export</button>
+                </nav>
+
+                <!-- Hero Action Button -->
+                <button id="btn-render-hero" class="hero-render-btn">⚡ Render Image</button>
+
+                <!-- Raw Frame Completion Status -->
+                <div id="status-bar">
+                    <span id="frame-completion-text">Frame 1/1 | Ready</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,286 @@
+/*
+ * KERR-TRACE v1.0 — Minimal Scientific Software Interface
+ * Palette: #0F1722 (bg), #1B2635 (panels), #243447 (cards), #E7EDF7 (text), #7C8DA3 (slate), #5CA9FF (accent)
+ */
+
+:root {
+    --bg-color: #0F1722;
+    --panel-color: #1B2635;
+    --card-color: #243447;
+    --text-primary: #E7EDF7;
+    --text-muted: #7C8DA3;
+    --accent-hero: #5CA9FF;
+    --accent-amber: #FFB648;
+    --font-sans: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+}
+
+#app-root {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    height: 100vh;
+}
+
+/* Minimal Top Brand Header */
+#top-bar {
+    height: 32px;
+    background-color: #090E16;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    z-index: 10;
+}
+
+.brand-title {
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    color: var(--text-primary);
+}
+
+.brand-version {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.status-online {
+    font-size: 11px;
+    color: #4CAF50;
+    font-family: var(--font-mono);
+}
+
+/* Sacred Edge-to-Edge Render Viewport */
+#viewport-container {
+    flex: 1;
+    position: relative;
+    background-color: #05080E;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+#canvas-wrapper {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#render-viewport-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Lightroom-Style Slide-Up Bottom Dock */
+#bottom-dock {
+    background-color: var(--panel-color);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 20;
+}
+
+/* Slide-Up Parameter Drawer */
+#param-drawer {
+    background-color: #141D29;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 0px 24px;
+    max-height: 0px;
+    overflow: hidden;
+    transition: max-height 0.25s ease-in-out, padding 0.25s ease-in-out;
+}
+
+#param-drawer.drawer-expanded {
+    max-height: 90px;
+    padding: 14px 24px;
+}
+
+.tab-panel {
+    display: none;
+    align-items: center;
+    gap: 32px;
+}
+
+.tab-panel.active {
+    display: flex;
+}
+
+/* Zero Input Boxes Parameter Styling */
+.param-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.param-label {
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.param-value {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 60px;
+}
+
+.param-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 120px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    outline: none;
+}
+
+.param-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent-hero);
+    cursor: pointer;
+    transition: transform 0.1s ease;
+}
+
+.param-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.3);
+}
+
+.param-select {
+    background-color: var(--card-color);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    outline: none;
+}
+
+.param-stat {
+    display: flex;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.stat-label {
+    color: var(--text-muted);
+}
+
+.stat-value {
+    color: var(--accent-amber);
+    font-family: var(--font-mono);
+    font-weight: 600;
+}
+
+/* Bottom Tab Bar & Hero Button */
+#dock-bar {
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+}
+
+#tab-nav {
+    display: flex;
+    gap: 20px;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    opacity: 0.6; /* 60% opacity for understated tabs */
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 6px 0;
+    transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.tab-btn:hover {
+    opacity: 0.85;
+    color: var(--text-primary);
+}
+
+.tab-btn.active {
+    opacity: 1.0; /* 100% white for active tab */
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--accent-hero);
+}
+
+/* Hero Action Button */
+.hero-render-btn {
+    background-color: var(--accent-hero);
+    color: #05080E;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 13.5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    box-shadow: 0 2px 10px rgba(92, 169, 255, 0.3);
+}
+
+.hero-render-btn:hover {
+    background-color: #7BB8FF;
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background-color: var(--card-color);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.btn-secondary:hover {
+    background-color: #2F4259;
+}
+
+/* Raw Frame Completion Status */
+#status-bar {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
