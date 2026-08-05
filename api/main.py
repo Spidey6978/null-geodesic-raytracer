@@ -28,11 +28,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.responses import FileResponse
+
 output_dir = Path(__file__).resolve().parent.parent / "output"
 output_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
 
+static_dir = Path(__file__).resolve().parent / "static"
+static_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
 app.include_router(router)
+
+
+@app.get("/ui")
+@app.get("/app")
+def serve_ui():
+    index_path = static_dir / "index.html"
+    return FileResponse(str(index_path))
 
 
 @app.get("/")
