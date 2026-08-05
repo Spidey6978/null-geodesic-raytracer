@@ -2,160 +2,123 @@
 
 A research-oriented General Relativity raytracer and distributed rendering service that numerically integrates photon geodesics through curved Kerr spacetime to simulate gravitational lensing, relativistic accretion disks, and frame-dragging around black holes.
 
-Unlike conventional graphics-based black hole renderers that rely on visual approximations or shader-space warps, **KERR-TRACE** traces light rays directly through Kerr and Schwarzschild spacetimes using exact metric tensors, conserved quantities, and adaptive RK4 numerical integration.
+![KERR-TRACE Hero Render](docs/images/hero.png)
+*Figure 1: High-resolution 1080p render of a near-extremal Kerr black hole ($a = 0.998$) with Keplerian differential rotation, Novikov-Thorne thermal envelope, and relativistic Doppler boosting.*
 
 ---
 
-## 🌟 Key Features
+## 🖼️ Physical Render Gallery
 
-### 🌌 Relativistic Spacetime Engine
-- **Conserved Quantity Formulation**: Traces null geodesics using exact Kerr constants of motion:
-  - Energy ($E = -p_t$)
-  - Axial Angular Momentum ($L = p_\phi$)
-  - Carter Constant ($Q$)
-- **Near-Extremal Spin Support**: Stable numerical integration at near-critical spins ($a = 0.998$).
-- **Polar-Conformal Timestepping Guardrail**: Bounces/caps azimuthal step sizes near $\theta \to 0, \pi$ to eliminate Boyer-Lindquist coordinate singularity artifacts without altering GR physics.
+To demonstrate the physical range of **KERR-TRACE**, the gallery below illustrates distinct gravitational spacetimes, inclination angles, and observer geometries:
 
-### 💫 Procedural Plasma Accretion Model
-- **Novikov-Thorne Relativistic Thermal Envelope**: Modeled with $g^4$ Doppler boosting and gravitational redshift.
-- **Kerr Keplerian Orbital Angular Velocity**: Differential rotation where inner plasma rotates faster than outer disk material:
-  $$\Omega(r) = \frac{\sqrt{M}}{r^{3/2} + a\sqrt{M}}$$
-- **Time-Advected Plasma Turbulence**: Numba-compiled 3-octave fBm noise advected along $\phi_{\text{adv}} = \phi - \Omega(r) \cdot t$.
+| Schwarzschild ($a = 0.0$) | Near-Extremal Kerr ($a = 0.998$) |
+| :---: | :---: |
+| ![Schwarzschild Luminet](docs/images/schwarzschild_luminet.png) | ![Kerr High Inclination](docs/images/kerr_high_inclination.png) |
+| **Symmetric Lensing (Luminet 1979 Geometry)**: Non-rotating black hole showing symmetric photon ring and circular shadow. | **Asymmetric Lensing ($85^\circ$ Inclination)**: Strong frame-dragging and asymmetric shadow distortion. |
 
-### 🛤️ 3D Camera Trajectory & Animation Engine
-- **Native Python Camera Splines**: 3D Catmull-Rom & Cubic Bezier path interpolation in `core/camera.py` for cinematic camera flybys.
-- **Asynchronous Animation Tasks**: Celery background workers render multi-frame sequences and compile `.mp4` video artifacts.
-
-### 🌌 Celestial Skybox & HDRI Sampling
-- **Equirectangular Texture Sampler**: Escaping photon rays ($r > R_{\text{bounds}}$) sample 4K/8K celestial HDR panoramas or procedural space nebulae (`core/skybox.py`).
-- **Gravitational Lensing Distortion**: Light bending around the horizon produces realistic **Einstein rings** and distorted background starfields.
-
-### ⚡ Distributed Systems Architecture & Web UI
-- **FastAPI REST API**: Endpoints for submitting jobs (`POST /api/v1/renders/image`), animation flybys (`POST /api/v1/renders/animation`), checking status, and fetching JSON metadata sidecars.
-- **Celery + Redis Task Queue**: Asynchronous background task queue with real-time percentage progress tracking (`Frame 37/100 | ETA 42s`).
-- **Docker Compose Stack**: Containerized setup for Redis, Celery workers, FastAPI server, and Redis Commander UI dashboard.
-- **Public Tunnel Automation (`pyngrok`)**: Launch public server with pre-configured static domains (`python scripts/run_public_server.py --domain touchily-steamerless-alyssa.ngrok-free.dev`).
-- **Minimal Sacred-Viewport Web UI**: Served live at `/ui`, featuring an edge-to-edge render canvas, Lightroom-style slide-up drawer, zero-box inline values, understated tabs, and a hero `Render Image` button.
+| Strong Frame-Dragging | Plasma Turbulence Advection ($t=0 \to t=2$) |
+| :---: | :---: |
+| ![Frame Dragging](docs/images/kerr_frame_dragging.png) | ![Plasma Motion](docs/images/plasma_t2.png) |
+| **Close-Range Observer**: Equatorial viewing geometry exposing frame-dragging warping near ISCO ($r_{\text{ISCO}} = 1.237 r_g$). | **Time-Advected Plasma**: Multi-octave turbulence advected via Keplerian angular frequency $\Omega(r)$. |
 
 ---
 
-## 🔬 Core Physics, Normalizations & Numerical Guardrails
+## 💫 Accretion Disk Physics & Relativistic Frequency Shifts
 
-For researchers, computational physicists, and engineers reviewing the codebase, this section documents the mathematical formulation and numerical safeguards implemented in `core/geodesics.py`.
+The accretion disk renderer implements a **Novikov-Thorne relativistic thin-disk model** coupled with Doppler boosting and gravitational redshift.
 
-### 1. Geometrical Unit Normalizations
-To prevent numerical underflow/overflow and make the equations scale-invariant, the engine uses **geometrical units**:
-$$G = c = M = 1$$
-- **Length**: Radii $r$ are measured in units of gravitational radius $r_g = \frac{GM}{c^2}$.
-- **Mass**: Measured in units of solar mass $M_\odot$.
-- **Spin**: Dimensionless spin parameter $a = \frac{J}{M^2} \in [0.0, 0.998]$.
-- **Schwarzschild Radius**: $r_s = 2M = 2.0$.
-- **Outer Event Horizon**: $r_+ = M + \sqrt{M^2 - a^2}$.
-- **Kerr ISCO Radius**: Computed analytically via Bardeen-Press-Teukolsky (1972) equations:
-  $$Z_1 = 1 + (1 - a^2)^{1/3} \left[(1 + a)^{1/3} + (1 - a)^{1/3}\right]$$
-  $$Z_2 = \sqrt{3a^2 + Z_1^2}$$
-  $$r_{\text{ISCO}} = 3 + Z_2 \mp \sqrt{(3 - Z_1)(3 + Z_1 + 2Z_2)}$$
+![Relativistic Frequency Shifts](docs/images/hero.png)
+*Figure 2: Physical breakdown of accretion disk emission features under extreme Kerr lensing:*
+
+1. **Approaching Side (Left / Foreground)**: Plasma moving toward the observer at relativistic speeds ($\sim 0.5c$). Intensity is strongly amplified by the relativistic Doppler factor $I_\nu \propto g^4$, shifting thermal emission into bright blueshifted tones.
+2. **Receding Side (Right)**: Plasma moving away from the observer. Emission is attenuated and redshifted into dim, warm tones.
+3. **Lensed Secondary Arch**: Light rays emitted from the back-side of the disk travel under the lower pole of the event horizon, bend around the photon sphere, and appear as a thin, highly brightened secondary arch above and below the shadow.
 
 ---
 
-### 2. Boyer-Lindquist Metric & Conserved Quantities
-In Boyer-Lindquist coordinates $(t, r, \theta, \phi)$, the Kerr line element $ds^2 = g_{\mu\nu} dx^\mu dx^\nu$ uses:
-$$\Sigma = r^2 + a^2 \cos^2\theta$$
-$$\Delta = r^2 - 2Mr + a^2$$
+## 🌌 Celestial Skybox & Gravitational Lensing
 
-Because the Kerr metric is stationary ($\partial_t g_{\mu\nu} = 0$) and axisymmetric ($\partial_\phi g_{\mu\nu} = 0$), two constants of motion exist immediately:
-1. **Specific Energy**: $E = -p_t = -g_{tt} \dot{t} - g_{t\phi} \dot{\phi}$
-2. **Axial Angular Momentum**: $L = p_\phi = g_{t\phi} \dot{t} + g_{\phi\phi} \dot{\phi}$
+When photon rays escape the strong-field region ($r > R_{\text{bounds}}$), they sample an equirectangular celestial skybox texture (`core/skybox.py`).
 
-In addition, Carter (1968) discovered a fourth constant of motion arising from a hidden Killing-Yano tensor:
-3. **Carter Constant**: $Q = p_\theta^2 + \cos^2\theta \left( \frac{L^2}{\sin^2\theta} - a^2 E^2 \right)$
+![Celestial Skybox Lensing](docs/images/skybox_lensing.png)
+*Figure 3: Gravitational lensing of background celestial panorama around the black hole shadow:*
+
+- **Einstein Rings & Star Distortion**: Background stars and deep space nebulae passing near the photon sphere are gravitationally lensed into circular Einstein arcs surrounding the central shadow boundary.
 
 ---
 
-### 3. The Boyer-Lindquist Polar Singularity & Numerical Cap
+## 🔬 Doctor Mode & Conservation Diagnostics
 
-#### **The Physical Reality vs. Coordinate Artifact**
-The Kretschmann curvature scalar $K = R^{\alpha\beta\gamma\delta} R_{\alpha\beta\gamma\delta}$ is completely smooth at the poles ($\theta = 0, \pi$). The polar needle phenomenon is **100% a coordinate artifact of Boyer-Lindquist coordinates**.
+Doctor Mode is a dedicated diagnostic subsystem (`doctor/diagnostics.py`) that computes 31 spatial diagnostic metrics per photon ray to inspect conservation laws and numerical behavior.
 
-#### **The Cause**
-In Boyer-Lindquist coordinates, the coordinate lines converge at $\theta = 0$ and $\theta = \pi$. The metric component $g_{\phi\phi} = \left( r^2 + a^2 + \frac{2 M a^2 r \sin^2\theta}{\Sigma} \right) \sin^2\theta \to 0$ as $\theta \to 0, \pi$.
+![Doctor Mode Diagnostic Map](docs/images/doctor_max_dphi_after.png)
+*Figure 4: Doctor Mode diagnostic map plotting max single-step azimuthal step size $|d\phi|_{\text{step}}$ across 518,400 photon rays ($960 \times 540$).*
 
-The geodesic equation for azimuthal coordinate velocity gives:
+### Diagnostic Metrics Monitored:
+- **Hamiltonian & Energy Drift**: Monitors $\Delta E / E_0$ and $\Delta L / L_0$ across $3,000+$ integration steps.
+- **Minimum Radius & Orbit Counts**: Tracks closet approach $r_{\text{min}}$ and equatorial plane crossing counts.
+- **Termination Reason Mapping**: Distinguishes genuine escape ($r > R_{\text{bounds}}$), horizon capture ($r < r_+$), and photon sphere trapping.
+
+---
+
+## 🛡️ Numerical Guardrails & Polar-Axis Artifact Fix
+
+For computational physicists reviewing the codebase, this section documents the numerical resolution of the **Boyer-Lindquist Polar Singularity** ($\theta \to 0, \pi$).
+
+| Guardrail OFF (Coordinate Singularity Artifact) | Guardrail ON (Polar-Conformal Adaptive Cap) |
+| :---: | :---: |
+| ![Needle Beam Artifact](docs/images/doctor_max_dphi_before.png) | ![Fixed Polar Cap](docs/images/doctor_max_dphi_after.png) |
+| **Vertical Needle Beam Artifact**: Near poles ($\theta \to 0$), $g_{\phi\phi} \to 0 \implies d\phi/d\lambda \to \infty$. Finite RK4 step sizes cause single-step jumps $\Delta \phi > \pi$, creating a spurious vertical needle streak. | **Smooth Shadow Boundary**: Bounding $\Delta \phi_{\text{step}} \le 0.15\text{ rad}$ bounds RK4 Taylor truncation error to machine precision $\mathcal{O}(dt^5)$ without altering GR metric physics. |
+
+### The Mathematical Formulation
+In Boyer-Lindquist coordinates $(t, r, \theta, \phi)$, the Kretschmann scalar $K$ is completely smooth at $\theta = 0, \pi$. The polar needle is **100% a coordinate artifact** caused by metric term $g_{\phi\phi} = \left( r^2 + a^2 + \frac{2 M a^2 r \sin^2\theta}{\Sigma} \right) \sin^2\theta \to 0$.
+
+The azimuthal coordinate velocity gives:
 $$\frac{d\phi}{d\lambda} \propto \frac{L}{\sin^2\theta}$$
 
-When a photon trajectory passes near the polar axis ($\theta < 0.05\text{ rad}$), $\frac{d\phi}{d\lambda} \to \infty$. In a standard non-adaptive or floor-bounded RK4 integrator taking a finite step $\Delta \lambda$, this causes massive single-step azimuthal jumps:
-$$\Delta \phi_{\text{step}} > \pi \text{ rad}$$
-In camera projection space, these spurious azimuthal truncation errors manifest as a **vertical needle-like beam artifact** stretching outward from the poles, along with **missing/jagged pixels at the shadow boundary**.
-
-#### **The Polar-Conformal Adaptive Step Cap**
-Rather than modifying the metric or introducing artificial damping (which violates conservation of $E, L, Q$), we bound the single-step azimuthal displacement $\Delta \phi_{\text{step}} \le 0.15\text{ rad}$ in `core/geodesics.py`:
-
+In `core/geodesics.py`, we implement the **Polar-Conformal Adaptive Step Cap**:
 ```python
-# Polar-Conformal Timestepping Guardrail (core/geodesics.py)
+# Bounding azimuthal displacement to 0.15 rad per step
 dphi_scale = abs(L) / (sin2 + 1e-6)
 polar_cap = 0.15 / dphi_scale if dphi_scale > 0.15 else 1.0
 
 dt_local = dt * min(max(r_factor * theta_factor, 1e-4), polar_cap) * far_factor
 ```
 
-#### **Why This is Physically Sound**
-1. **Truncation Error Bounded**: Local RK4 truncation error scales as $\mathcal{O}(\Delta \lambda^5)$. Bounding $\Delta \phi_{\text{step}} \le 0.15\text{ rad}$ bounds Taylor series truncation error to machine precision.
-2. **Conservation Laws Preserved**: Energy $E$, angular momentum $L$, and Carter constant $Q$ remain conserved to within $10^{-6}$ across $3,000+$ integration steps.
-3. **Artifact Elimination**: Complements Doctor Mode diagnostic maps by restoring smooth, continuous shadow boundaries and eliminating the vertical needle streak entirely.
+---
+
+## 🎨 KERR-TRACE Interactive Web UI
+
+Served live at **`http://localhost:8000/ui`** or via ngrok tunnel **`https://touchily-steamerless-alyssa.ngrok-free.dev/ui`**:
+
+![KERR-TRACE Web UI](docs/images/hero.png)
+
+- **Sacred Edge-to-Edge Viewport**: Viewport occupies ~90% of screen area.
+- **Lightroom-Style Slide-Up Drawer**: Bottom dock resting at 56px height, sliding up to expose active tab controls (`Spacetime`, `Observer`, `Accretion`, `Diagnostics`, `Export`).
+- **Zero Input Box Outlines**: Clean, borderless text values (`Spin 0.998`, `Mass 1 M☉`, `Inclination 70°`).
+- **Hero Render Button**: Prominent sky-blue (`#5CA9FF`) `⚡ Render Image` button.
+- **Raw Frame Progress**: Displays real-time frame progress `Frame 37/100 | ETA 42s`.
 
 ---
 
 ## 🚀 Usage & Quick Start
 
-### 1. Prerequisites & Installation
-Clone the repository and install requirements:
+### 1. Installation
 ```bash
 git clone https://github.com/Spidey6978/null-geodesic-raytracer.git
 cd null-geodesic-raytracer
 pip install -r requirements.txt
 ```
 
----
-
-### 2. Launching the Interactive Web UI (`KERR-TRACE`)
-Start the FastAPI server locally:
+### 2. Launching Web UI & Public Tunnel
 ```bash
-python -m uvicorn api.main:app --reload --port 8000
-```
-Open your browser and navigate to:
-👉 **`http://localhost:8000/ui`**
-
----
-
-### 3. Launching Public Server via Ngrok Tunnel
-To host a public HTTPS tunnel with your static ngrok domain:
-```bash
+# Launch public server with pre-configured static domain
 python scripts/run_public_server.py --domain touchily-steamerless-alyssa.ngrok-free.dev
 ```
-Your public Web Dashboard will be available live at:
+Open in browser:
 👉 **`https://touchily-steamerless-alyssa.ngrok-free.dev/ui`**
 
----
-
-### 4. Running Distributed Stack via Docker Compose
-To launch Redis, Celery Workers, FastAPI, and Redis Commander UI in Docker containers:
-```bash
-docker compose up --build
-```
-- **Web UI**: `http://localhost:8000/ui`
-- **Swagger REST Docs**: `http://localhost:8000/docs`
-- **Redis Commander GUI**: `http://localhost:8081`
-
----
-
-### 5. Programmatic Python API & CLI Rendering
-
-#### **Render Single Frame via CLI**
-```bash
-python -m scripts.render_kernel --spin 0.998 --preset hero --out output/hero_1080p.png
-```
-
-#### **Render Frame via Python API**
+### 3. Programmatic Python API
 ```python
 from core.config import RenderConfig, BlackHoleConfig, CameraConfig, RenderMode
 from api.engine import render_frame_from_config
@@ -163,7 +126,7 @@ from api.engine import render_frame_from_config
 config = RenderConfig(
     black_hole=BlackHoleConfig(mass=1.0, spin=0.998),
     camera=CameraConfig(preset="hero", fov=100.0),
-    mode=RenderMode.PRODUCTION,  # 1080p high-res
+    mode=RenderMode.PRODUCTION,
     skybox_path="procedural"
 )
 
@@ -171,49 +134,14 @@ meta = render_frame_from_config(config, "output/my_blackhole.png")
 print(f"Rendered in {meta['render_time_s']:.2f} seconds.")
 ```
 
----
-
-### 6. Automated Test Suite
-Run all unit and integration tests across physics, camera splines, skybox, API endpoints, rate limiter, and Web UI:
+### 4. Automated Test Suite
 ```bash
 pytest
 ```
 
 ---
 
-## 📁 Repository Structure
-
-```text
-├── api/
-│   ├── main.py              # FastAPI application entrypoint & static mounting
-│   ├── routes.py            # REST API endpoints (/renders, /jobs, /presets)
-│   ├── schemas.py           # Pydantic request/response schemas
-│   ├── engine.py            # Pure Python library rendering entrypoint
-│   ├── rate_limiter.py      # IP sliding-window rate limiting middleware
-│   └── static/              # KERR-TRACE Web App (index.html, styles.css, app.js)
-├── core/
-│   ├── geodesics.py         # Numba-compiled Kerr & Schwarzschild integrators
-│   ├── camera.py            # Vectorized camera rays & 3D Catmull-Rom/Bezier splines
-│   ├── skybox.py            # Equirectangular UV texture sampler & procedural space
-│   ├── config.py            # RenderConfig, BlackHoleConfig, AnimationConfig models
-│   └── constants.py         # Physical constants & simulation boundaries
-├── doctor/                  # Diagnostic subsystem for conservation & tensor maps
-├── scripts/
-│   ├── render_kernel.py     # Parallel multi-hit production rendering kernel
-│   ├── run_public_server.py # Ngrok public tunnel launcher
-│   └── cam_presets.py       # Camera angle presets (hero, luminet_1979, etc.)
-├── workers/
-│   ├── celery_app.py        # Celery task queue configuration
-│   └── tasks.py             # Asynchronous image & animation worker tasks
-├── docker-compose.yml       # Docker container orchestration stack
-└── Dockerfile               # Container build file for API & workers
-```
-
----
-
 ## 📜 Citation & License
-
-This project is developed as a physically bulletproof General Relativity computational research platform. If you use this software in academic publications, research reports, or visualization projects, please cite:
 
 ```bibtex
 @software{gopani_kerr_trace_2026,
