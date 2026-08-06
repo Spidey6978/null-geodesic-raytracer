@@ -557,7 +557,7 @@ def integrate_path_lean(start_pos, start_vel, dt, max_steps,
         else:
             initial_state_code = 6
     
-    return final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, termination_reason, initial_state_code
+    return final_dir, captured, hit_count, hit_radii, hit_phis, hit_vels, termination_reason
 
 @njit(nopython=True, cache=True)
 def integrate_path_doctor(start_pos, start_vel, dt, max_steps, mass, a, r_outer_horizon, disk_inner, disk_outer, sim_bounds):

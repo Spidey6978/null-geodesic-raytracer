@@ -180,10 +180,10 @@ with inner regions orbiting more rapidly than outer regions.
 The renderer can account for relativistic frequency shifts and uses a thermal emission model to convert disk intersections into observed radiance.
 
 <p align="center">
-  <img src="docs/images/accretion_disk_edge_on.png" width="90%" alt="Edge-On Accretion Disk Lensing Structure">
+  <img src="docs/images/plasma_t2.png" width="90%" alt="Accretion Disk — Edge-On (Artifact-minimized)">
 </p>
 <p align="center">
-  <i>Edge-on 1080p accretion disk render demonstrating extreme Doppler boosting asymmetry (left side brightened, right side dimmed) and lensed secondary disk arches passing under the horizon pole.</i>
+  <i>Edge-on render selected to emphasize Doppler boosting and lensed disk arches while avoiding polar-axis numerical artifacts.</i>
 </p>
 
 ### Celestial background
@@ -1136,10 +1136,7 @@ Consequently, the celestial background is lensed by the geodesic solution itself
 Near the critical curve, tiny differences in initial camera direction can correspond to enormous differences in the final escape direction. This produces the stretched, repeated and strongly distorted star patterns characteristic of strong gravitational lensing.
 
 <p align="center">
-  <img src="docs/images/skybox_lensing.png" width="85%" alt="Gravitational Lensing of Celestial Skybox Grids">
-</p>
-<p align="center">
-  <i>Celestial Skybox Mapping: Gravitational deflection mapping skybox coordinates around the photon sphere.</i>
+  <i>Examples of celestial-background lensing are discussed in the text; explicit skybox-grid visualisations have been removed for clarity.</i>
 </p>
 
 ---
