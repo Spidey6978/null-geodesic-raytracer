@@ -26,6 +26,16 @@ def start_public_server(port: int = 8000, auth_token: str = None, domain: str = 
         print("❌ Error: 'pyngrok' is not installed. Install it via 'pip install pyngrok'.")
         sys.exit(1)
 
+    # Ensure repository root is on sys.path so package imports like `api` work
+    # when this script is executed from the `scripts/` subdirectory.
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    try:
+        os.chdir(repo_root)
+    except Exception:
+        pass
+
     token = auth_token or os.getenv("NGROK_AUTHTOKEN")
     if token:
         ngrok.set_auth_token(token)
