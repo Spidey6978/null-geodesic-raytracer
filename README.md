@@ -239,10 +239,10 @@ Doctor is intended to answer:
 > *Why did the renderer produce that pixel?*
 
 <p align="center">
-  <img src="docs/images/doctor_diagnostic_map.png" width="85%" alt="Doctor Diagnostic Termination Map">
+  <img src="docs/images/doctor_full_tensor.png" width="85%" alt="Doctor Spatial Diagnostic Tensor Map">
 </p>
 <p align="center">
-  <i>Doctor Diagnostic Map: Spatial tensor data plotting maximum single-step azimuthal displacement |dφ| across 518,400 photon trajectories to verify Hamiltonian conservation.</i>
+  <i>Doctor Diagnostic Tensor Map: Spatial diagnostic visualization mapping ray termination reasons, step counts, and minimum approach radii across the image plane.</i>
 </p>
 
 This became particularly useful while investigating small groups of anomalous pixels near the shadow boundary and coordinate-sensitive trajectories near the polar axis.
@@ -1135,6 +1135,13 @@ Consequently, the celestial background is lensed by the geodesic solution itself
 
 Near the critical curve, tiny differences in initial camera direction can correspond to enormous differences in the final escape direction. This produces the stretched, repeated and strongly distorted star patterns characteristic of strong gravitational lensing.
 
+<p align="center">
+  <img src="docs/images/skybox_lensing.png" width="85%" alt="Gravitational Lensing of Celestial Skybox Grids">
+</p>
+<p align="center">
+  <i>Celestial Skybox Mapping: Gravitational deflection mapping skybox coordinates around the photon sphere.</i>
+</p>
+
 ---
 
 ## 13. Boyer-Lindquist Coordinate Pathologies
@@ -1222,10 +1229,10 @@ In image space, errors affecting a narrow family of rays can become highly visib
 Importantly, the interpretation of this artifact is numerical and coordinate-dependent rather than evidence for a physical jet or beam emitted by the black hole.
 
 <p align="center">
-  <img src="docs/images/doctor_max_dphi_before.png" width="80%" alt="Polar-Axis Needle Beam Artifact">
+  <img src="docs/images/polar_needle_render.png" width="85%" alt="Polar-Axis Needle Beam Artifact Render">
 </p>
 <p align="center">
-  <i>The Polar-Axis Artifact: Doctor diagnostic map showing uncapped RK4 step integration near θ → 0 causing a spurious vertical needle streak across the polar axis.</i>
+  <i>The Polar-Axis Artifact (Production Render): Un-capped RK4 integration near θ → 0 causing a spurious vertical needle streak extending outward from the polar axis.</i>
 </p>
 
 A coordinate system without the same polar/horizon behaviour, such as Kerr-Schild coordinates, provides an important future comparison.
@@ -1276,10 +1283,10 @@ It only attempts to resolve trajectories approaching the problematic region with
 <table>
 <tr>
 <td width="50%">
-<img src="docs/images/doctor_max_dphi_before.png" width="100%" alt="Guardrail OFF">
+<img src="docs/images/polar_needle_render.png" width="100%" alt="Guardrail OFF - Vertical Needle Streak">
 </td>
 <td width="50%">
-<img src="docs/images/doctor_max_dphi_after.png" width="100%" alt="Guardrail ON">
+<img src="docs/images/hero.png" width="100%" alt="Guardrail ON - Fixed Bounded Cap">
 </td>
 </tr>
 <tr>
