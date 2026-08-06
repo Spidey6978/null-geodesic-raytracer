@@ -32,21 +32,20 @@ def blender_camera_to_ray_dirs(scene, width: int, height: int) -> tuple:
     # ── Camera orientation ────────────────────────────────────────────────────
     # Extract forward (-Z in Blender camera space), up (Y), right (X)
     # from the rotation part of the matrix.
-    rot      = cam_matrix.to_3x3()
-    # Blender camera looks along -Z local axis
-    forward_bl = -rot.col[2]   # -Z column
-    up_bl      =  rot.col[1]   #  Y column
+    rot = cam_matrix.to_3x3()
+    right_bl   =  rot.col[0]   # Local +X in Blender (Right)
+    up_bl      =  rot.col[1]   # Local +Y in Blender (Up)
+    forward_bl = -rot.col[2]   # Local -Z in Blender (Forward)
 
-    # Apply the same coordinate swap
-    forward = np.array([forward_bl.x, forward_bl.z, forward_bl.y], dtype=np.float64)
+    # Apply coordinate swap: Blender (X, Y, Z) → raytracer (X, Z, Y)
+    right   = np.array([right_bl.x,   right_bl.z,   right_bl.y  ], dtype=np.float64)
     up      = np.array([up_bl.x,      up_bl.z,      up_bl.y     ], dtype=np.float64)
+    forward = np.array([forward_bl.x, forward_bl.z, forward_bl.y], dtype=np.float64)
 
-    # Normalize (matrix should already be orthonormal but float safety)
-    forward = forward / np.linalg.norm(forward)
-    up      = up      / np.linalg.norm(up)
-    right   = np.cross(forward, up)
+    # Normalize vectors directly
     right   = right   / np.linalg.norm(right)
-    up      = np.cross(right, forward)   # reorthogonalize
+    up      = up      / np.linalg.norm(up)
+    forward = forward / np.linalg.norm(forward)
 
     # ── FOV ───────────────────────────────────────────────────────────────────
     # Blender stores lens as focal length (mm) relative to sensor size (mm).

@@ -22,11 +22,13 @@ def generate_camera_rays(width, height, fov_degrees, cam_pos, look_at, roll_degr
     norm_f = np.linalg.norm(forward)
     forward = forward / norm_f if norm_f > 1e-12 else np.array([0.0, 0.0, -1.0])
 
-    right = np.cross(forward, up_guide)
+    right = np.cross(up_guide, forward)
     norm_r = np.linalg.norm(right)
     right = right / norm_r if norm_r > 1e-12 else np.array([1.0, 0.0, 0.0])
 
-    up = np.cross(right, forward)
+    up = np.cross(forward, right)
+    norm_u = np.linalg.norm(up)
+    up = up / norm_u if norm_u > 1e-12 else np.array([0.0, 1.0, 0.0])
 
     # 2. Screen Dimensions
     aspect_ratio = width / height
